@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>JC StoryMate</title>
+  <title>StoryMate</title>
   <style>
     :root { color-scheme: light; font-family: "Trebuchet MS", Verdana, sans-serif; color: #55351f; background: #ead5af; font-size: 16px; }
     * { box-sizing: border-box; }
@@ -22,7 +22,12 @@
     .view-tab[aria-selected="true"] { background: #ffe6ad; border-color: #a86e3f; color: #59351f; box-shadow: inset 0 3px #fff2d0; font-weight: 700; }
     .card { background: #ffe6ad; border: 3px solid #8a532d; border-radius: 3px; box-shadow: inset 0 0 0 3px #f1c778, 0 4px 0 #b4844f; overflow: hidden; }
     .chat { max-width: 780px; margin: 0 auto; }
-    .chat-heading { display: flex; justify-content: space-between; align-items: center; padding: 17px 23px; border-bottom: 2px solid #d4a762; }
+    .chat-heading { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: space-between; align-items: center; padding: 17px 23px; border-bottom: 2px solid #d4a762; }
+    .chat-actions { display: flex; align-items: center; gap: 12px; }
+    .outline { max-width: 100%; }
+    .outline h3 { margin: 0 0 10px; font-size: 1rem; }
+    .outline ul { padding-left: 20px; margin: 0; }
+    .outline li + li { margin-top: 7px; }
     .chat-log { height: min(50vh, 440px); min-height: 280px; overflow-y: auto; padding: 24px; scrollbar-color: #b8874e #f7dba4; }
     .chat-greeting { color: #805735; line-height: 1.7; margin: 0; }
     .chat-turn { max-width: 87%; margin-bottom: 20px; }
@@ -152,7 +157,7 @@
     .script-rule { border: 1px solid #d5b47b; background: #fff1cd; padding: 13px; margin-bottom: 13px; }
     .active-rule { border: 2px solid #9ca95a; padding: 12px; background: #fff7dc; }
     .script-rule-heading, .trace-rule-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-    .script-rule h3, .trace-rule-heading h3 { margin: 0; font-size: 1rem; }
+    .script-rule h3, .trace-heading { margin: 0; font-size: 1rem; }
     .script-rule-heading .text-button, .trace-rule-heading .text-button { padding: 0; }
     .script-line { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 10px; margin: 8px 0; line-height: 1.75; font-size: .9375rem; overflow-wrap: anywhere; }
     .named-slot { display: inline; padding: 2px 4px; background: #dde8b0; color: #56612f; border-bottom: 2px solid #8b9d4d; box-decoration-break: clone; }
@@ -164,15 +169,20 @@
     .trace-form .primary { width: auto; margin: 0; padding-left: 10px; padding-right: 10px; }
     .trace-compose input { min-width: 0; }
     .trace-source { position: sticky; top: 8px; z-index: 1; padding: 14px; background: #fff4d6; border: 2px solid #c4a16b; box-shadow: 0 3px #ead19e; }
-    .annotated-message { font-size: 1.18rem; line-height: 1.85; margin: 0; overflow-wrap: anywhere; }
+    .annotated-message { font-size: 1.18rem; line-height: 1.85; margin: 6px 0 0; overflow-wrap: anywhere; }
+    .keyword-match { font-size: 1rem; line-height: 1.65; margin: 10px 0 0; overflow-wrap: anywhere; }
     .found-keyword { text-decoration: underline; text-decoration-color: #af712d; text-decoration-thickness: 3px; text-underline-offset: 4px; font-weight: 700; }
     .found-phrase { background: #f3d695; }
     .reused-text { background: #dde8b0; color: #4e5a2e; border-bottom: 2px solid #8b9d4d; padding: 2px 0; box-decoration-break: clone; }
     .source-key { margin: 10px 0 0; font-size: .8125rem; color: #8c7149; line-height: 1.6; }
     .matched-rule { padding: 16px 0; border-bottom: 1px solid #cfa96f; }
-    .rule-reason { font-size: .875rem; color: #8a673d; line-height: 1.7; margin: 0 0 13px; }
-    .capture-binding { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; line-height: 1.8; margin: 14px 0; font-size: .9375rem; }
+    .rule-reason { font-size: 1rem; line-height: 1.7; margin: 8px 0 0; }
+    .capture-binding { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; line-height: 1.75; margin: 8px 0 0; font-size: 1rem; overflow-wrap: anywhere; }
+    .match-fragment { padding: 2px 4px; background: #f3d695; }
     .trace-result { padding: 18px 0 3px; }
+    .trace-result .trace-heading { margin-bottom: 8px; }
+    .reply-template { font-size: .9375rem; line-height: 1.7; margin: 0 0 9px; overflow-wrap: anywhere; }
+    .reply-template .syntax { margin-right: .5em; }
     .built-reply { font-size: 1.13rem; line-height: 1.85; margin: 0; overflow-wrap: anywhere; }
     .trace-more { margin-top: 17px; font-size: .875rem; color: #8c7149; line-height: 1.7; }
     .trace-more summary { cursor: pointer; }
@@ -211,13 +221,14 @@
     .memory-source summary { cursor: pointer; }
     .memory-source p { margin: 6px 0 0; }
     .context-word { border-bottom: 2px dotted #718744; }
+    .site-credit { margin: 24px 0 0; color: #78522f; font-size: .875rem; line-height: 1.5; text-align: center; }
   </style>
 </head>
 <body>
   <main class="page">
     <header>
       <div>
-        <h1>JC StoryMate</h1>
+        <h1>StoryMate</h1>
       </div>
     </header>
 
@@ -242,7 +253,10 @@
       <div class="card chat">
         <div class="chat-heading">
           <h2>Conversation</h2>
-          <button class="text-button" id="clear-chat" type="button">Clear chat</button>
+          <div class="chat-actions">
+            <button class="text-button" id="show-outline" type="button" disabled>Story outline</button>
+            <button class="text-button" id="clear-chat" type="button">Clear chat</button>
+          </div>
         </div>
         <div class="chat-log" id="chat-log" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions">
           <p class="chat-greeting">Tell me a little about your story.</p>
@@ -250,7 +264,7 @@
         <form class="chat-form" id="chat-form">
           <label for="chat-sentence">Message</label>
           <div class="chat-compose">
-            <input id="chat-sentence" placeholder="Try: A dragon." maxlength="240" autocomplete="off" spellcheck="false" aria-describedby="chat-status">
+            <input id="chat-sentence" placeholder="My character is ..." maxlength="240" autocomplete="off" spellcheck="false" aria-describedby="chat-status">
             <button class="primary" type="submit">Send</button>
           </div>
           <p class="status" id="chat-status" role="status"></p>
@@ -278,6 +292,10 @@
             <label for="topic-select">Keyword group</label>
             <div class="select-wrap"><select id="topic-select"></select></div>
             <div id="script-body"></div>
+            <details class="trace-more">
+              <summary>What is [next question]?</summary>
+              <p>StoryMate fills this slot with a follow-up based on the story so far. Select Explain beside a chat reply to see which question it chose.</p>
+            </details>
             <div class="script-actions">
               <button id="add-rule" type="button" class="secondary">Add a rule</button>
               <button id="restore-defaults" type="button" class="text-button">Restore defaults</button>
@@ -287,7 +305,7 @@
           <section class="card trace-card" id="explanation" aria-labelledby="trace-title" tabindex="-1">
             <h2 id="trace-title">Explain a reply</h2>
             <form id="trace-form" class="trace-form">
-              <label for="trace-input">Try a sentence</label>
+              <label for="trace-input">Sentence to explain</label>
               <div class="trace-compose">
                 <input id="trace-input" value="My character is a dragon." maxlength="240" autocomplete="off" spellcheck="false" aria-describedby="trace-status">
                 <button class="primary" type="submit">Explain</button>
@@ -324,7 +342,7 @@
         <div class="editor-then">
           <label for="edit-replies">then reply</label>
           <textarea id="edit-replies" rows="3" placeholder="What is special about [character]?" spellcheck="false"></textarea>
-          <div class="reply-tools"><button id="insert-part" type="button" class="text-button">Insert [character]</button><span class="field-help">One reply per line; used in turn.</span></div>
+          <div class="reply-tools"><button id="insert-part" type="button" class="text-button">Insert [character]</button><span class="field-help">One reply per line. StoryMate picks one at random.</span></div>
         </div>
         <details id="editor-more" class="editor-more">
           <summary>More options</summary>
@@ -340,16 +358,35 @@
         </div>
       </form>
     </dialog>
+    <footer class="site-credit">Credit · CUHK-JC AI for the Future</footer>
   </main>
   <script>
 'use strict';
 
-const BRAND = 'JC StoryMate';
 const STORAGE_KEY = 'jc-storymate-script-v2';
 const LEGACY_KEY = 'eliza-story-rules-v1';
 const CHARACTER_WORDS = ['dragon', 'angel', 'hero', 'elf', 'robot', 'knight'];
 const PLACE_WORDS = ['forest', 'castle', 'school', 'planet', 'mountain', 'village', 'island'];
-const OPENING = 'Hello! Let\'s build a story. Start with "My character is ..." or just name your hero, such as "a dragon". We\'ll choose a place next.';
+const VOCABULARY_VERSION = 1;
+const EXTRA_KEYWORDS = {
+  1: ['characters', 'protagonist', 'unicorn', 'fairy', 'wizard', 'witch', 'pirate', 'mermaid', 'giant', 'ghost', 'detective', 'alien', 'fox', 'owl', 'rabbit', 'cat', 'wolf', 'bear'],
+  2: ['bakery', 'cave', 'library', 'garden', 'beach', 'ocean', 'desert', 'city', 'town', 'kingdom', 'tower', 'lake', 'farm', 'market', 'spaceship'],
+  3: ['wish', 'wishes', 'hope', 'hopes', 'hoping', 'aim', 'aims', 'goal', 'quest', 'mission'],
+  4: ['obstacle', 'stuck', 'trapped', 'blocked', 'locked', 'danger', 'storm', 'collapsed'],
+  5: ['secrets', 'mystery', 'mysterious', 'clue', 'clues', 'twist', 'unexpected', 'hidden', 'revealed', 'disguise'],
+  6: ['endings', 'ends', 'conclusion', 'epilogue', 'afterward', 'afterwards', 'resolution']
+};
+const OPENING = 'What’s the first thing you picture in your story?';
+const STORY_PARTS = [
+  {number:1, label:'Character', question:'Who do we follow in this story?'},
+  {number:2, label:'Setting', question:'Where does this happen?'},
+  {number:3, label:'Goal', question:'What is your character hoping for?'},
+  {number:4, label:'Obstacle', question:'What could get in their way?'},
+  {number:5, label:'Twist'},
+  {number:6, label:'Ending', question:'What does your character do next?'}
+];
+const GUIDE_SLOT = 'next_question';
+const DETAIL_SLOT = 'story_detail';
 const MATCH_TYPES = [
   ['keyword', 'A keyword appears'],
   ['phrase', 'The message contains a phrase'],
@@ -364,42 +401,88 @@ const esc = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<'
 const ruleId = (topic, rule) => 'Rule ' + topic.number + '.' + rule.number;
 const slotName = rule => rule.type === 'character' ? 'character' : rule.type === 'place' ? 'place' : rule.type === 'after' ? rule.capture : 'keyword';
 const defaultRule = (number, type, replies, phrase = '', capture = 'detail') => ({number, type, phrase, capture, replies});
+const DEFAULT_REPLY_PARTS = new Map([
+  ['1:1',2], ['1:2',2], ['1:3',1], ['2:1',3], ['2:2',3],
+  ['3:1',4], ['4:1',6], ['5:1',6], ['5:2',6], ['6:1',null]
+]);
 const DEFAULT_CONFIG = {
-  guidanceVersion: 1,
+  guidanceVersion: 4,
+  vocabularyVersion: VOCABULARY_VERSION,
   nextTopic: 7,
   topics: [
-    {number:1, name:'Characters', keywords:['character','hero','dragon','angel','elf','robot','knight'], priority:10, nextRule:4, rules:[
-      defaultRule(1, 'after', ['Where does [character] live? Try a forest, a castle, or a mountain.','What does [character] want? Try "They want to ...".'], 'character is', 'character'),
-      defaultRule(2, 'character', ['Where does your character live? Try a forest, a castle, or a mountain.','What does your character want? Try "They want to ...".']),
-      defaultRule(3, 'keyword', ['Tell me one thing about your character, then choose a place: a forest, a castle, or a mountain.'])
+    {number:1, name:'Characters', keywords:['character', ...CHARACTER_WORDS, ...EXTRA_KEYWORDS[1]], priority:10, nextRule:4, rules:[
+      defaultRule(1, 'after', [
+        'I’m picturing [character] already. Where do we first meet them?',
+        'So we’ll follow [character]. What sort of place do they call home?',
+        'That gives us someone to follow. Where does the story begin for [character]?'
+      ], 'character is', 'character'),
+      defaultRule(2, 'character', [
+        'We have someone to follow. Where do we first meet them?',
+        'I can picture someone at the centre of this story now. Where does your character feel at home?',
+        'I’m curious where your character might turn up. What kind of place would surprise them?'
+      ]),
+      defaultRule(3, 'keyword', [
+        'Let’s spend a moment with the character. Who do you picture?',
+        'I’m listening. What’s the first thing we’d notice about your character?'
+      ])
     ]},
-    {number:2, name:'Places', keywords:['forest','castle','school','planet','mountain','village','island','setting'], priority:20, nextRule:3, rules:[
-      defaultRule(1, 'place', ['What does your character want in the [place]? Try "They want to ...".','What makes the [place] unusual? Is there a secret or a problem?']),
-      defaultRule(2, 'keyword', ['Choose a place for the story: a forest, a castle, or a mountain. What does your character want there?'])
+    {number:2, name:'Places', keywords:[...PLACE_WORDS, 'setting', ...EXTRA_KEYWORDS[2]], priority:20, nextRule:3, rules:[
+      defaultRule(1, 'place', [
+        'The [place] gives us an opening scene. What brings your character there?',
+        'I can picture a scene in the [place]. What is your character looking for?',
+        'So we’re in the [place]. What does your character hope will happen there?'
+      ]),
+      defaultRule(2, 'keyword', [
+        'We have somewhere for the story to unfold. What draws your character there?',
+        'I’m starting to picture the scene. What is your character hoping to do there?'
+      ])
     ]},
-    {number:3, name:'Goals', keywords:['want','wants','need','needs'], priority:30, nextRule:2, rules:[
-      defaultRule(1, 'keyword', ['What gets in the way? Try "But ..." to introduce a problem.','Who or what could stop them? Add a problem, or let them discover a secret.'])
+    {number:3, name:'Goals', keywords:['want', 'wants', 'need', 'needs', ...EXTRA_KEYWORDS[3]], priority:30, nextRule:2, rules:[
+      defaultRule(1, 'keyword', [
+        'That gives your character a reason to act. What could get in their way?',
+        'Now there’s something at stake for your character. Who or what might stand in their way?',
+        'They have something to aim for. What might make it harder than they expect?'
+      ])
     ]},
-    {number:4, name:'Obstacles', keywords:['but','cannot',"can't",'problem'], priority:40, nextRule:2, rules:[
-      defaultRule(1, 'keyword', ['How could your character get past this problem? Could a secret help?','Who could help them? Perhaps someone knows a secret.'])
+    {number:4, name:'Obstacles', keywords:['but', 'cannot', "can't", 'problem', ...EXTRA_KEYWORDS[4]], priority:40, nextRule:2, rules:[
+      defaultRule(1, 'keyword', [
+        'Things just got harder for your character. How do they respond?',
+        'That puts them in a difficult spot. What choice do they make?',
+        'That could be the moment the story turns. What happens when your character faces it?'
+      ])
     ]},
-    {number:5, name:'Secrets', keywords:['secret','suddenly','strange'], priority:50, nextRule:3, rules:[
-      defaultRule(1, 'phrase', ['Who knows the secret, and how could it change the ending?','What happens when the secret is revealed? Try "Finally ..." to begin your ending.'], 'secret'),
-      defaultRule(2, 'keyword', ['How does this surprise change the story? Think about a problem or the ending.'])
+    {number:5, name:'Secrets', keywords:['secret', 'suddenly', 'strange', ...EXTRA_KEYWORDS[5]], priority:50, nextRule:3, rules:[
+      defaultRule(1, 'phrase', [
+        'That secret could change everything. Where does it lead by the end?',
+        'Now someone has something to hide. How does the story end once someone finds out?',
+        'The secret gives us a possible turning point. How might it change the ending?'
+      ], 'secret'),
+      defaultRule(2, 'keyword', [
+        'That takes the story in a new direction. What happens right after the surprise?',
+        'I didn’t see that coming. How does your character react?'
+      ])
     ]},
-    {number:6, name:'Endings', keywords:['ending','end','finally'], priority:60, nextRule:2, rules:[
-      defaultRule(1, 'keyword', ['What changes for your character at the end? Could you give your story a title?','Does the ending solve the problem? What has your character learned?'])
+    {number:6, name:'Endings', keywords:['ending', 'end', 'finally', ...EXTRA_KEYWORDS[6]], priority:60, nextRule:2, rules:[
+      defaultRule(1, 'keyword', [
+        'That gives the story a closing scene. What feeling do you want to leave the reader with?',
+        'We have an ending to work with. What would stay with the reader afterward?',
+        'I can picture the last scene. What might you call this story?'
+      ])
     ]}
   ],
-  fallback:['Tell me who your character is, or choose a place: a forest, a castle, or a mountain.','What does your character want? Try "They want to ...".','What gets in their way? Try "But ...", or add a secret.']
+  fallback:['I’m following. [next_question]','I can picture that. [next_question]','Let’s keep going. [next_question]']
 };
 let config = copy(DEFAULT_CONFIG);
 let selectedTopic = 1;
 let trace = null;
 let editState = null;
-const cursors = new Map();
+const lastReplies = new Map();
 const chatTurns = [];
-const storyMemory = {character:null};
+const storyMemory = {character:null, characterless:false};
+const storyNotes = [];
+const skippedParts = new Set();
+let askedPart = null;
+let completionShown = false;
 
 function characterWords(topic=config.topics.find(item=>item.number===1)) {
   return topic ? topic.keywords.filter(word=>!['character','characters','protagonist'].includes(word)) : CHARACTER_WORDS;
@@ -407,6 +490,15 @@ function characterWords(topic=config.topics.find(item=>item.number===1)) {
 function placeWords() {
   const topic=config.topics.find(item=>item.number===2);
   return topic ? topic.keywords.filter(word=>word!=='setting') : PLACE_WORDS;
+}
+function characterChoice(input) {
+  if (input.endsWith('?')) return null;
+  const clause=input.toLowerCase().replace(/’/g,"'").replace(/^actually,\s*/,'').split(/[,;.!]/,1)[0].trim();
+  const absence=clause.match(/^(?:(?:there is|there are|there's|(?:my |the |this )?story has|it has) )?no (?:main )?characters?(?: in (?:my|the|this) story)?(?: (yet|so far|right now))?$/)
+    || clause.match(/^there (?:isn't|aren't) (?:a |any )?(?:main )?characters?(?: (yet|so far|right now))?$/);
+  if (absence) return absence[1] ? 'open' : 'absent';
+  if (/^(?:my |the )?(?:main )?character (?:is not|isn't)\b/.test(clause)) return 'negated-description';
+  return null;
 }
 function namedCharacter(tokens,input) {
   const phrase=phraseAt(tokens,'character is');
@@ -417,7 +509,9 @@ function namedCharacter(tokens,input) {
   const words=characterWords(), index=tokens.findIndex(token=>words.includes(token.word));
   if (index<0) return null;
   const first=index>0 && ['a','an','the'].includes(tokens[index-1].word) ? index-1 : index;
-  return {text:input.slice(tokens[first].start,tokens[index].end),source:input};
+  const hasDescription=first===0 && ['who','that'].includes(tokens[index+1]?.word);
+  const last=hasDescription ? tokens.length-1 : index;
+  return {text:input.slice(tokens[first].start,tokens[last].end),source:input};
 }
 
 function tokenize(input) {
@@ -478,19 +572,111 @@ function fillTemplate(template, captures) {
   for (const match of template.matchAll(re)) {
     if (match.index > offset) parts.push({text:template.slice(offset,match.index)});
     const name=match[1].toLowerCase();
-    parts.push({text:captures[name] ? captures[name].text : '',name});
+    const capture=captures[name];
+    if (capture?.parts) parts.push(...capture.parts);
+    else parts.push({text:capture ? capture.text : '',name});
     offset=match.index+match[0].length;
   }
   if (offset < template.length) parts.push({text:template.slice(offset)});
   return parts;
 }
+function storyQuestion(plan, input, tokens, newCharacter, selected) {
+  const plain={text:plan.nextQuestion};
+  if (!plan.note || plan.complete || plan.characterless) return {question:plain};
+
+  const firstWord=tokens[0];
+  const lastWord=tokens[tokens.length-1];
+  const span=(start,end)=>({text:input.slice(start,end),start,end});
+  const lowerArticle=text=>text.replace(/^(A|An|The)\b(?=\s)/, word=>word.toLowerCase());
+  let detail, wording;
+
+  if (plan.nextPart===2 && newCharacter && newCharacter.text.length<=72 && !/[.!?]/.test(newCharacter.text)) {
+    const start=input.indexOf(newCharacter.text);
+    detail=span(start,start+newCharacter.text.length);
+    wording=['Where might we meet ',lowerArticle(detail.text),'?'];
+  } else if (plan.nextPart===3 && selected?.captures.place) {
+    const place=selected.captures.place;
+    detail=span(place.start,place.end);
+    wording=['What brings your character to the ',detail.text,'?'];
+  } else if (plan.nextPart===4) {
+    const index=tokens.findIndex((token,i)=>['want','wants','need','needs'].includes(token.word) && tokens[i+1]?.word==='to');
+    const actionStart=index>=0 ? tokens[index+2] : firstWord.word==='to' ? tokens[1] : null;
+    if (actionStart) {
+      const action=input.slice(actionStart.start,lastWord.end).split(/[,.!?;]/,1)[0].trimEnd();
+      if (action && action.length<=72) {
+        detail=span(actionStart.start,actionStart.start+action.length);
+        wording=['What might make it hard to ',detail.text,'?'];
+      }
+    }
+  }
+
+  if (!wording && plan.nextPart===3 && plan.note.parts.includes(2)) {
+    return {question:{text:'What brings your character there?'}};
+  }
+  if (!wording && plan.nextPart===6 && plan.note.parts.includes(4)) {
+    return {question:{text:'How does your character respond?'}};
+  }
+
+  if (!wording) return {question:plain};
+  const [before,text,after]=wording;
+  return {
+    detail,
+    question:{text:before+text+after,parts:[{text:before},{text,name:DETAIL_SLOT},{text:after}]}
+  };
+}
+function planStoryTurn(input, hits, newCharacter, contextCheck, choice) {
+  const skipped = contextCheck === 'skip' ? askedPart : null;
+  const characterless = choice ? choice==='absent' : storyMemory.characterless && !newCharacter;
+  const isStoryDetail = (!contextCheck || choice==='absent') && !input.endsWith('?');
+  const mentionedParts = new Set(
+    isStoryDetail ? hits.map(hit => hit.topic).filter(number => STORY_PARTS.some(part => part.number === number)) : []
+  );
+  if (characterless) {
+    mentionedParts.delete(1);
+    mentionedParts.delete(3);
+  }
+  if (!newCharacter) mentionedParts.delete(1);
+  if (isStoryDetail && newCharacter) mentionedParts.add(1);
+
+  // Short answers such as "A bakery" can answer the last question without a keyword.
+  const followsQuestion = isStoryDetail && !contextCheck && !mentionedParts.size && askedPart !== null;
+  if (followsQuestion) mentionedParts.add(askedPart);
+  const covered = new Set([...skippedParts, ...storyNotes.flatMap(note => note.parts), ...mentionedParts, skipped]);
+  const eventQuestions = [
+    {number:4, label:'first change', question:'What changes first?'},
+    {number:2, label:'setting', question:'Where does it happen?'},
+    {number:6, label:'ending', question:'How does it end?'}
+  ];
+  const questions=characterless ? eventQuestions : STORY_PARTS;
+  const next = questions.find(part => part.question && !covered.has(part.number));
+  const complete = !next && (storyNotes.length > 0 || isStoryDetail);
+  const question = next ? next.question : 'What else would you like to add to your story?';
+
+  return {
+    note: isStoryDetail ? {text:input, parts:[...mentionedParts],characterless,choice} : null,
+    characterless,
+    coveredParts:[...covered],
+    skipped,
+    nextPart: next?.number ?? null,
+    nextLabel: next?.label.toLowerCase() ?? null,
+    nextQuestion: complete && !completionShown ? 'Here’s your story outline.' : question,
+    complete
+  };
+}
 function analyze(input) {
   const tokens=tokenize(input);
   if (!tokens.length) throw new Error('Enter a short English sentence.');
   if (tokens.length > 60) throw new Error('Use no more than 60 words.');
-  let newCharacter=namedCharacter(tokens,input);
+  const choice=characterChoice(input);
+  let newCharacter=choice ? null : namedCharacter(tokens,input);
+  // A short introduction can establish a character even when their name isn't in the script.
+  const lookingForCharacter=!choice && !storyMemory.characterless && (askedPart===1 || !storyNotes.length);
+  if (!newCharacter && lookingForCharacter && tokens.length===2 && ['a','an'].includes(tokens[0].word)
+      && !placeWords().includes(tokens[1].word) && !input.endsWith('?')) {
+    newCharacter={text:input.slice(tokens[0].start,tokens[1].end),source:input};
+  }
   const pronoun=tokens.find(token=>['it','he','she','they','him','her','them'].includes(token.word));
-  const reference=!newCharacter && pronoun && storyMemory.character ? {token:copy(pronoun),character:copy(storyMemory.character)} : null;
+  const reference=!choice && !newCharacter && pronoun && storyMemory.character ? {token:copy(pronoun),character:copy(storyMemory.character)} : null;
   const allHits=[];
   const candidates=config.topics.map((topic, order) => {
     const hits=tokens.filter(token => topic.keywords.includes(token.word)).map(token => ({...token,topic:topic.number,group:topic.name}));
@@ -501,9 +687,14 @@ function analyze(input) {
   const attempts=[];
   let selected=null;
   const first=tokens[0].word;
-  const contextCheck=tokens.length===1 && ['hello','hi','hey'].includes(first) ? 'greeting'
-    : !newCharacter && !allHits.length && ['that',"that's"].includes(first) ? 'ambiguous'
-    : !newCharacter && pronoun && !storyMemory.character ? 'unknown' : null;
+  const responseWords=tokens.map(token=>token.word).join(' ');
+  const uncertain = ["i don't know", 'not sure', "i'm not sure", 'no idea', 'maybe'].includes(responseWords);
+  const contextCheck=choice ? 'character-'+choice
+    : tokens.length===1 && first==='skip' ? 'skip'
+    : tokens.length===1 && ['hello','hi','hey'].includes(first) ? 'greeting'
+    : uncertain ? 'uncertain'
+    : !newCharacter && !allHits.length && !storyMemory.characterless && ['that',"that's"].includes(first) ? 'ambiguous'
+    : !newCharacter && pronoun && !storyMemory.character && !storyMemory.characterless ? 'unknown' : null;
   for (const candidate of contextCheck ? [] : candidates) {
     for (const rule of candidate.topic.rules) {
       const match=matchRule(rule,tokens,input,candidate.hits,reference);
@@ -515,31 +706,68 @@ function analyze(input) {
   if (selected && selected.rule.type==='after' && selected.captures.character && !selected.captures.character.fromMemory) {
     newCharacter={text:selected.captures.character.text,source:input};
   }
+  const plan=planStoryTurn(input,allHits,newCharacter,contextCheck,choice);
+  const guide=storyQuestion(plan,input,tokens,newCharacter,selected);
   const key=contextCheck ? 'context:'+contextCheck : selected ? selected.topic.number+':'+selected.rule.number : 'fallback';
-  const cursor=cursors.get(key)||0;
-  const replies=contextCheck==='greeting' ? [OPENING]
-    : contextCheck==='ambiguous' ? ['When you say "that", do you mean your character, a place, or an event? Name it once so I can follow.']
-    : contextCheck==='unknown' ? ['Who does "'+pronoun.text+'" refer to? Start with "My character is ..." or name them, such as "a dragon".']
+  const defaultRule=selected && DEFAULT_CONFIG.topics.find(topic=>topic.number===selected.topic.number)
+    ?.rules.find(rule=>rule.number===selected.rule.number);
+  const isDefault=defaultRule && defaultRule.type===selected.rule.type &&
+    defaultRule.phrase===selected.rule.phrase && defaultRule.capture===selected.rule.capture &&
+    defaultRule.replies.length===selected.rule.replies.length &&
+    defaultRule.replies.every((reply,index)=>reply===selected.rule.replies[index]);
+  const preferredPart=isDefault ? DEFAULT_REPLY_PARTS.get(key) : null;
+  const needsCharacter=preferredPart===3 && !plan.coveredParts.includes(1);
+  const alreadyAnswered=preferredPart===null ? !plan.complete : plan.coveredParts.includes(preferredPart);
+  const adjustQuestion=isDefault && !plan.characterless && (needsCharacter || alreadyAnswered);
+  const replies=choice==='absent' ? ['Let’s follow an event. [next_question]']
+    : choice==='open' ? ['We can leave that open. What else do you picture?']
+    : choice==='negated-description' ? ['What do you know about your character so far?']
+    : contextCheck==='skip' ? ['[next_question]']
+    : contextCheck==='greeting' ? [OPENING]
+    : contextCheck==='uncertain' ? ['We can leave that open. What part of the story can you picture?']
+    : contextCheck==='ambiguous' ? ['Which part of the story are you thinking of?']
+    : contextCheck==='unknown' ? ['Who does “'+pronoun.text+'” refer to in your story?']
+    : plan.characterless && isDefault ? config.fallback
     : selected ? selected.rule.replies : config.fallback;
-  const templateIndex=cursor%replies.length;
-  const template=replies[templateIndex];
+  const previous=lastReplies.get(key);
+  const available=replies.map((_,index)=>index).filter(index=>replies[index]!==previous);
+  const templateIndex=available.length ? available[Math.floor(Math.random()*available.length)] : 0;
+  const chosenReply=replies[templateIndex];
+  // Keep the rule's acknowledgment when the story needs a different question.
+  const template=adjustQuestion ? chosenReply.replace(/\s+[^.!?]*\?$/, ' [next_question]') : chosenReply;
   const captures=selected ? selected.captures : {message:{text:input,start:0,end:input.length}};
+  captures[GUIDE_SLOT]=guide.question;
   const usedNames=[...template.matchAll(/\[([a-z][a-z0-9_]*)\]/gi)].map(match=>match[1].toLowerCase());
-  const primary=selected && usedNames.includes(selected.primary) ? selected.primary : usedNames.find(name=>captures[name]) || null;
   const replyParts=fillTemplate(template,captures);
+  if (guide.detail && usedNames.includes(GUIDE_SLOT)) captures[DETAIL_SLOT]=guide.detail;
+  const primary=selected && usedNames.includes(selected.primary) ? selected.primary : replyParts.find(part=>part.name && part.name!==GUIDE_SLOT)?.name ?? null;
   return {
     input,tokens,allHits:copy(allHits),candidates:candidates.map(item=>({number:item.topic.number,name:item.topic.name,priority:item.topic.priority})),
-    newCharacter,reference,contextCheck,description:selected ? describe(selected.rule) : '',
+    newCharacter,reference,choice,contextCheck,description:selected ? describe(selected.rule) : '',
+    plan, usedGuide:usedNames.includes(GUIDE_SLOT), preferredPart,
+    templateChanged:template!==chosenReply,
+    scriptOption:selected && replies===selected.rule.replies ? {index:templateIndex,count:replies.length} : null,
     topic:selected ? copy(selected.topic) : null, rule:selected ? copy(selected.rule) : null,
     hits:selected ? copy(selected.hits) : [], anchor:selected ? selected.anchor : null, primary,
-    captures:copy(captures), attempts, key,cursor,templateIndex,template,
+    captures:copy(captures), attempts, key, chosenReply, template,
     replyParts,reply:replyParts.map(part=>part.text).join('').replace(/\s+([,.?!])/g,'$1').replace(/\s+/g,' ').trim(),committed:false
   };
 }
 function commit(result) {
   if (result.committed) return;
-  cursors.set(result.key,Math.max(cursors.get(result.key)||0,result.cursor+1));
-  if (result.newCharacter) storyMemory.character=copy(result.newCharacter);
+  lastReplies.set(result.key,result.chosenReply);
+  if (result.choice==='absent' || result.choice==='open') {
+    storyMemory.character=null;
+    storyMemory.characterless=result.choice==='absent';
+  }
+  if (result.newCharacter) {
+    storyMemory.character=copy(result.newCharacter);
+    storyMemory.characterless=false;
+  }
+  if (result.plan.note) storyNotes.push(result.plan.note);
+  if (result.plan.skipped !== null) skippedParts.add(result.plan.skipped);
+  if (result.usedGuide) askedPart=result.plan.nextPart;
+  else if (!result.contextCheck || result.choice) askedPart=result.preferredPart;
   result.committed=true;
 }
 function annotatedInput(result) {
@@ -561,43 +789,108 @@ function annotatedInput(result) {
   }).join('');
 }
 function templateHTML(text) {
-  return esc(text).replace(/\[([a-z][a-z0-9_]*)\]/gi,'<span class="named-slot">[$1]</span>');
+  return esc(text).replace(/\[([a-z][a-z0-9_]*)\]/gi,(_,name)=>'<span class="named-slot">['+(name.toLowerCase()===GUIDE_SLOT?'next question':name)+']</span>');
+}
+function keywordMatchHTML(result) {
+  const groups=new Map();
+  for (const hit of result.allHits) {
+    if (!groups.has(hit.topic)) groups.set(hit.topic,{name:hit.group,words:new Map()});
+    const words=groups.get(hit.topic).words;
+    if (!words.has(hit.word)) words.set(hit.word,hit.text);
+  }
+  if (!groups.size) return '<p class="keyword-match">No keywords matched.</p>';
+
+  const list=new Intl.ListFormat('en',{style:'long',type:'conjunction'});
+  return [...groups].map(([number,group])=>{
+    const words=list.format([...group.words.values()].map(word=>'“'+word+'”'));
+    const verb=group.words.size===1 ? 'is' : 'are';
+    return '<p class="keyword-match"><strong>'+esc(words)+'</strong> '+verb+
+      ' in keyword group '+esc(number)+' ('+esc(group.name)+').</p>';
+  }).join('');
+}
+function ruleMatchHTML(result) {
+  const {rule,anchor}=result;
+  const condition='<p class="rule-reason">'+templateHTML(result.description)+'</p>';
+  if (!anchor) return condition;
+
+  const matched=result.input.slice(anchor.start,anchor.end);
+  const name=rule.type==='after' ? rule.capture : ['character','place'].includes(rule.type) ? rule.type : null;
+  const capture=name ? result.captures[name] : null;
+  const binding=capture
+    ? '<span aria-hidden="true">→</span><span class="named-slot">['+esc(name)+']</span><span>is</span>'+
+      '<span class="reused-text">'+esc(capture.text)+'</span>'
+    : '';
+  return condition+'<p class="capture-binding"><strong>Matched</strong>'+
+    '<span class="match-fragment">“'+esc(matched)+'”</span>'+binding+'</p>';
 }
 function renderTrace() {
   if (!trace) return;
-  const primary=trace.primary ? trace.captures[trace.primary] : null;
-  const keywords=[...new Set(trace.allHits.map(hit=>hit.text))];
-  const matchedLabel=trace.rule ? ruleId(trace.topic,trace.rule) : trace.contextCheck==='greeting' ? 'Opening prompt' : trace.contextCheck ? 'Reference check' : 'Default reply';
+  const noteLabels={
+    greeting:'Opening prompt',
+    skip:'Skip this question',
+    uncertain:'Leave this detail open',
+    ambiguous:'Clarify the reference',
+    unknown:'Clarify the reference',
+    'character-absent':'A story without a main character',
+    'character-open':'Leave the character open',
+    'character-negated-description':'Ask about the character'
+  };
+  const contextReasons={
+    greeting:'A greeting opens the story prompt.',
+    skip:'The guide moves past the last question.',
+    ambiguous:'“That” could mean a character, a place, or an event. StoryMate asks which one.',
+    uncertain:'The message leaves the current story detail open.',
+    unknown:'The message uses a pronoun before a character has been named.',
+    'character-absent':'The message says there is no character. The guide follows events.',
+    'character-open':'The message leaves the character undecided.',
+    'character-negated-description':'The message rules out a description. StoryMate asks for another detail.'
+  };
+
+  const matchedLabel=trace.rule ? 'Match '+ruleId(trace.topic,trace.rule) : noteLabels[trace.contextCheck] || 'No rule matched';
   const currentTopic=trace.topic ? config.topics.find(topic=>topic.number===trace.topic.number) : null;
   const currentRule=currentTopic && trace.rule ? currentTopic.rules.find(rule=>rule.number===trace.rule.number) : null;
   const recordedNote=trace.committed && trace.rule && (!currentRule || JSON.stringify(currentTopic)!==JSON.stringify(trace.topic))
-    ? '<p class="recorded-note">'+(!currentRule?'This reply used a rule that has since been removed.':'This reply was recorded before the latest script edit.')+'</p>' : '';
-  let reason='';
-  if (trace.topic) {
-    const own=[...new Set(trace.hits.map(hit=>'"'+hit.text+'"'))];
-    reason=trace.hits.every(hit=>hit.reference) ? '"'+trace.reference.token.text+'" uses the remembered character in keyword group '+trace.topic.number+'.'
-      : own.join(' and ')+' '+(own.length>1?'are':'is')+' in keyword group '+trace.topic.number+'.';
-    if (trace.candidates.length>1) reason+=' Groups are checked in this order: '+trace.candidates.map(item=>item.name).join(', ')+'.';
-  } else reason=trace.contextCheck==='greeting' ? 'A greeting opens the story prompt.'
-    : trace.contextCheck==='ambiguous' ? '"That" could mean a character, a place, or an event. Ask which one.'
-    : trace.contextCheck==='unknown' ? 'No character has been named in this chat yet.'
-    : trace.allHits.length ? 'Keywords were found, but none of their rules matched.' : 'No keyword group matched this message.';
-  const replyHTML=trace.replyParts.map(part=>part.name ? '<span class="reused-text">'+esc(part.text)+'</span>' : esc(part.text)).join('');
-  const alternatives=trace.attempts.length>1 ? '<details class="trace-more"><summary>Why this rule?</summary>'+trace.attempts.map(item=>'<p><strong>'+esc(item.id)+'</strong>: '+esc(item.description)+' <span>'+(item.matched?'Matched.':'Did not match.')+'</span></p>').join('')+'</details>' : '';
+    ? '<p class="recorded-note">'+(!currentRule?'This reply used a rule that has since been removed.':'This reply was recorded before the latest script edit.')+'</p>'
+    : '';
+  const groupOrder=trace.rule && trace.candidates.length>1
+    ? '<p class="rule-reason">Keyword group priority is '+trace.candidates.map(group=>esc(group.number)).join(' → ')+'.</p>'
+    : '';
+  const ruleDetails=trace.rule
+    ? ruleMatchHTML(trace)
+    : '<p class="rule-reason">'+esc(contextReasons[trace.contextCheck] || 'StoryMate used a fallback reply.')+'</p>';
+  const alternatives=trace.attempts.length>1
+    ? '<details class="trace-more"><summary>Rules checked</summary>'+trace.attempts.map(item=>
+      '<p><strong>'+esc(item.id)+'</strong> · '+esc(item.description)+' '+(item.matched?'Matched.':'Did not match.')+'</p>').join('')+'</details>'
+    : '';
+
+  const replyHTML=trace.replyParts.map(part=>part.name && part.name!==GUIDE_SLOT
+    ? '<span class="reused-text">'+esc(part.text)+'</span>' : esc(part.text)).join('');
+  const replyPattern=trace.template!==trace.reply
+    ? '<p class="reply-template"><span class="syntax">Template</span> '+templateHTML(trace.template)+'</p>' : '';
+  const guideNote=trace.usedGuide && trace.plan.nextLabel
+    ? '<p class="source-key">The guide selected a question about the '+esc(trace.plan.nextLabel)+'.</p>' : '';
+  const variationNote=trace.scriptOption && trace.scriptOption.count>1
+    ? '<p class="source-key">Reply option '+(trace.scriptOption.index+1)+' of '+trace.scriptOption.count+'.'+
+      (trace.templateChanged?' The question was adjusted to fit the story so far.':'')+'</p>' : '';
+
+  const referenceNote=trace.reference
+    ? '<p class="memory-note">“'+esc(trace.reference.token.text)+'” refers to the last character, <strong>'+
+      esc(trace.reference.character.text)+'</strong>.</p><details class="memory-source"><summary>Earlier message</summary><p>'+
+      esc(trace.reference.character.source)+'</p></details>' : '';
+  const editButton=trace.rule ? '<button type="button" class="text-button" id="edit-matched-rule">Edit this rule</button>' : '';
+
   $('trace-body').innerHTML=
-    '<div class="trace-source"><p class="small-label">Your message</p><p class="annotated-message">'+annotatedInput(trace)+'</p><p class="source-key">Underlined: '+(keywords.length ? esc(keywords.join(', ')) : 'no new keywords')+(primary ? (primary.fromMemory?' · Green: remembered text':' · Green: text reused in the reply') : '')+'</p>'+
-    (trace.reference ? '<p class="memory-note">"'+esc(trace.reference.token.text)+'" refers to the last character: <strong>'+esc(trace.reference.character.text)+'</strong>.</p><details class="memory-source"><summary>Earlier message</summary><p>'+esc(trace.reference.character.source)+'</p></details>' : '')+'</div>'+
-    '<div class="matched-rule"><div class="trace-rule-heading"><h3>'+esc(matchedLabel)+'</h3>'+(trace.rule?'<button type="button" class="text-button" id="edit-matched-rule">Edit this rule</button>':'')+'</div>'+
-    '<p class="rule-reason">'+esc(reason)+'</p>'+recordedNote+'<div class="script-line"><span class="syntax">if match</span><span>'+esc(trace.rule?trace.description:trace.contextCheck?'Ask for the missing context.':'No matching rule. Use a default reply.')+'</span></div>'+
-    (primary?'<p class="capture-binding"><span class="named-slot">['+esc(trace.primary)+']</span><span>is</span><span class="reused-text">'+esc(primary.text)+'</span></p>':'')+
-    '<div class="script-line"><span class="syntax">then reply</span><span>'+templateHTML(trace.template)+'</span></div></div>'+
-    '<div class="trace-result"><p class="small-label">Reply</p><p class="built-reply">'+replyHTML+'</p>'+(primary?'':'<p class="source-key">This rule uses a fixed reply.</p>')+'</div>'+alternatives;
+    '<div class="trace-source"><h3 class="trace-heading">Match keywords</h3><p class="annotated-message">'+
+    annotatedInput(trace)+'</p>'+keywordMatchHTML(trace)+referenceNote+'</div>'+
+    '<div class="matched-rule"><div class="trace-rule-heading"><h3 class="trace-heading">'+esc(matchedLabel)+'</h3>'+
+    editButton+'</div>'+groupOrder+ruleDetails+recordedNote+alternatives+'</div>'+
+    '<div class="trace-result"><h3 class="trace-heading">Reply</h3>'+replyPattern+'<p class="built-reply">'+
+    replyHTML+'</p>'+variationNote+guideNote+'</div>';
+
   const edit=$('edit-matched-rule');
   if (edit) {
-    const topic=config.topics.find(item=>item.number===trace.topic.number);
-    const rule=topic && topic.rules.find(item=>item.number===trace.rule.number);
-    edit.hidden=!rule;
-    edit.addEventListener('click',()=>openEditor(topic.number,rule.number));
+    edit.hidden=!currentRule;
+    edit.addEventListener('click',()=>openEditor(trace.topic.number,trace.rule.number));
   }
 }
 function renderScript() {
@@ -610,7 +903,7 @@ function renderScript() {
   if (!topic) { $('script-body').innerHTML='<p class="empty-script">Add a keyword group to start a script.</p>'; return; }
   $('script-body').innerHTML='<div class="script-keywords"><p class="small-label">keyword group '+topic.number+': '+esc(topic.name)+'</p><p>'+esc(topic.keywords.join(', '))+'</p>'+
     (topic.number===1 ? '<form id="character-words-form" class="character-words-form"><label for="extra-character-words">Add character words</label><div class="word-compose"><input id="extra-character-words" placeholder="unicorn, fairy, fox" autocomplete="off" spellcheck="false"><button class="secondary" type="submit">Add words</button></div></form>' : '')+'</div>'+
-    '<p class="outer-if"><span class="syntax">if keyword exists</span> in the message:</p><p class="script-order">Rules are checked from top to bottom.</p>'+
+    '<p class="outer-if"><span class="syntax">if keyword exists</span> in the message:</p><p class="script-order">Rules are checked in order. StoryMate picks one reply at random.</p>'+
     '<div class="script-rules">'+topic.rules.map(rule=>{
       const active=trace && trace.topic && trace.topic.number===topic.number && trace.rule.number===rule.number;
       return '<article class="script-rule'+(active?' active-rule':'')+'" id="script-rule-'+topic.number+'-'+rule.number+'"><div class="script-rule-heading"><h3>'+ruleId(topic,rule)+'</h3><button type="button" class="text-button" data-edit="'+rule.number+'">Edit</button></div>'+
@@ -628,6 +921,19 @@ function selectView(view) {
   $('explain-panel').hidden=chat;
   if (chat) $('chat-log').scrollTop=$('chat-log').scrollHeight;
 }
+function showOutline() {
+  if (!storyNotes.length) return;
+  $('story-outline')?.remove();
+  const notes = storyNotes.map(note => {
+    const labels=STORY_PARTS.filter(part=>note.parts.includes(part.number)).map(part=>note.characterless && part.number===4 ? 'Change' : part.label);
+    if (note.choice==='absent') labels.unshift('Story choice');
+    const label=labels.length ? '<strong>'+esc(labels.join(' / '))+'</strong> · ' : '';
+    return '<li>'+label+esc(note.text)+'</li>';
+  });
+  $('chat-log').insertAdjacentHTML('beforeend', '<section class="chat-turn assistant outline" id="story-outline" aria-labelledby="outline-title"><div class="bubble eliza"><h3 id="outline-title">Your story outline</h3><ul>'+notes.join('')+'</ul></div></section>');
+  const log=$('chat-log');
+  log.scrollTop += $('story-outline').getBoundingClientRect().top - log.getBoundingClientRect().top - 14;
+}
 function sendMessage() {
   try {
     const input=$('chat-sentence').value.trim();
@@ -635,11 +941,16 @@ function sendMessage() {
     const result=analyze(input);commit(result);chatTurns.push(result);
     if (chatTurns.length===1) $('chat-log').innerHTML='';
     $('chat-log').insertAdjacentHTML('beforeend','<div class="chat-turn user"><p class="speaker">You</p><p class="bubble user">'+esc(input)+'</p></div><div class="chat-turn assistant"><p class="speaker">StoryMate</p><p class="bubble eliza">'+esc(result.reply)+'</p><button type="button" class="text-button message-explain" data-explain="'+(chatTurns.length-1)+'" aria-label="Explain reply '+chatTurns.length+'">Explain</button></div>');
+    $('show-outline').disabled=!storyNotes.length;
     $('chat-sentence').value='';
     $('chat-status').textContent='';
     $('chat-sentence').removeAttribute('aria-invalid');
     $('chat-log').scrollTop=$('chat-log').scrollHeight;
     $('chat-sentence').focus();
+    if (result.plan.complete && !completionShown) {
+      completionShown=true;
+      showOutline();
+    }
   } catch(error) { $('chat-status').textContent=error.message;$('chat-status').classList.add('error');$('chat-sentence').setAttribute('aria-invalid','true'); }
 }
 function preview(selectMatched=true) {
@@ -660,11 +971,11 @@ function addCharacterWords() {
     const candidate=copy(config), topic=candidate.topics.find(item=>item.number===1);
     topic.keywords=[...new Set([...topic.keywords,...additions])];
     config=validateConfig(candidate);saveConfig();renderScript();preview(false);
-    setStatus('Character words added: '+additions.join(', ')+'. Try them in Chat.');
+    setStatus('Character words added: '+additions.join(', ')+'. They are active in Chat.');
   } catch(error) { setStatus(error.message,true); }
 }
 function upgradeGuidance(candidate) {
-  if (candidate.guidanceVersion>=1) return candidate;
+  if (candidate.guidanceVersion>=4) return candidate;
   const old={
     '1.1':['What is special about [character]?','What does [character] want more than anything?'],
     '1.2':['What does the [character] want more than anything?','What is the [character] afraid of losing?'],
@@ -677,10 +988,28 @@ function upgradeGuidance(candidate) {
     '5.2':['What would make this surprise matter to your character?'],
     '6.1':['What should change for your character by the end?','What choice could bring the story to an end?']
   };
+  const previous={
+    '1.1':['Where does [character] live? Try a forest, a castle, or a mountain.','What does [character] want? Try "They want to ...".'],
+    '1.2':['Where does your character live? Try a forest, a castle, or a mountain.','What does your character want? Try "They want to ...".'],
+    '1.3':['Tell me one thing about your character, then choose a place: a forest, a castle, or a mountain.'],
+    '2.1':['What does your character want in the [place]? Try "They want to ...".','What makes the [place] unusual? Is there a secret or a problem?'],
+    '2.2':['Choose a place for the story: a forest, a castle, or a mountain. What does your character want there?'],
+    '3.1':['What gets in the way? Try "But ..." to introduce a problem.','Who or what could stop them? Add a problem, or let them discover a secret.'],
+    '4.1':['How could your character get past this problem? Could a secret help?','Who could help them? Perhaps someone knows a secret.'],
+    '5.1':['Who knows the secret, and how could it change the ending?','What happens when the secret is revealed? Try "Finally ..." to begin your ending.'],
+    '5.2':['How does this surprise change the story? Think about a problem or the ending.'],
+    '6.1':['What changes for your character at the end? Could you give your story a title?','Does the ending solve the problem? What has your character learned?']
+  };
+  const guided={
+    '1.1':['Let’s tell a story about [character]. [next_question]'],
+    '2.1':['The [place] can be your setting. [next_question]']
+  };
   for (const topic of candidate.topics) for (const rule of topic.rules) {
-    const key=topic.number+'.'+rule.number, original=old[key];
-    if (original && JSON.stringify(rule.replies)===JSON.stringify(original)) {
-      const replacement=DEFAULT_CONFIG.topics.find(item=>item.number===topic.number).rules.find(item=>item.number===rule.number);
+    const key=topic.number+'.'+rule.number;
+    const replies=JSON.stringify(rule.replies);
+    const replacement=DEFAULT_CONFIG.topics.find(item=>item.number===topic.number)?.rules.find(item=>item.number===rule.number);
+    if (replacement && rule.type===replacement.type && rule.phrase===replacement.phrase && rule.capture===replacement.capture &&
+        [old[key],previous[key],guided[key],['[next_question]']].some(words=>JSON.stringify(words)===replies)) {
       rule.replies=copy(replacement.replies);
     }
   }
@@ -690,13 +1019,31 @@ function upgradeGuidance(candidate) {
       if (!candidate.topics.some(topic=>topic.keywords.includes(word))) places.keywords.push(word);
     }
   }
-  if (JSON.stringify(candidate.fallback)===JSON.stringify(['What happens next?','Can you add one specific detail?','What choice does your character make?'])) candidate.fallback=copy(DEFAULT_CONFIG.fallback);
-  candidate.guidanceVersion=1;
+  const earlierFallbacks=[
+    ['[next_question]'],
+    ['What happens next?','Can you add one specific detail?','What choice does your character make?'],
+    ['Tell me who your character is, or choose a place: a forest, a castle, or a mountain.','What does your character want? Try "They want to ...".','What gets in their way? Try "But ...", or add a secret.']
+  ];
+  if (earlierFallbacks.some(replies=>JSON.stringify(replies)===JSON.stringify(candidate.fallback))) candidate.fallback=copy(DEFAULT_CONFIG.fallback);
+  candidate.guidanceVersion=4;
+  return candidate;
+}
+function upgradeVocabulary(candidate) {
+  if (candidate.vocabularyVersion>=VOCABULARY_VERSION) return candidate;
+  const claimedWords = new Set(candidate.topics.flatMap(topic => topic.keywords));
+  for (const topic of candidate.topics) {
+    for (const word of EXTRA_KEYWORDS[topic.number] || []) {
+      if (claimedWords.has(word)) continue;
+      topic.keywords.push(word);
+      claimedWords.add(word);
+    }
+  }
+  candidate.vocabularyVersion=VOCABULARY_VERSION;
   return candidate;
 }
 function captureOptions(rule) {
   const name=slotName(rule);
-  return [...new Set(['message','keyword',...(rule.type==='after'?[name,'before']:rule.type==='character'||rule.type==='place'?[name]:[])])];
+  return [...new Set(['message','keyword',GUIDE_SLOT,...(rule.type==='after'?[name,'before']:rule.type==='character'||rule.type==='place'?[name]:[])])];
 }
 function validateConfig(candidate) {
   if (!candidate || !Array.isArray(candidate.topics) || !Array.isArray(candidate.fallback) || !candidate.fallback.length) throw new Error('The saved script is incomplete.');
@@ -781,16 +1128,16 @@ function saveEditedRule() {
     if (editState.isNewGroup) candidate.topics.push(topic);
     else candidate.topics[candidate.topics.findIndex(item=>item.number===topic.number)]=topic;
     candidate.nextTopic=Math.max(candidate.nextTopic,topic.number+1);
-    config=validateConfig(candidate);cursors.clear();selectedTopic=topic.number;saveConfig();
+    config=validateConfig(candidate);lastReplies.clear();selectedTopic=topic.number;saveConfig();
     $('rule-dialog').close();renderScript();preview(false);
-    setStatus(ruleId(topic,rule)+' saved. Try it in Chat.');
+    setStatus(ruleId(topic,rule)+' saved. It is active in Chat.');
   } catch(error) { $('editor-status').textContent=error.message; }
 }
 function deleteEditedRule() {
   const topic=config.topics.find(item=>item.number===editState.topic.number);
   topic.rules=topic.rules.filter(rule=>rule.number!==editState.rule.number);
   if (!topic.rules.length) config.topics=config.topics.filter(item=>item!==topic);
-  cursors.clear();saveConfig();$('rule-dialog').close();renderScript();preview();setStatus('Rule removed.');
+  lastReplies.clear();saveConfig();$('rule-dialog').close();renderScript();preview();setStatus('Rule removed.');
 }
 function importLegacy(saved) {
   let migrated=copy(DEFAULT_CONFIG);
@@ -819,6 +1166,7 @@ function importLegacy(saved) {
   migrated.nextTopic=migrated.topics.length+1;
   migrated.fallback=saved.fallback.replies;
   migrated.guidanceVersion=0;
+  migrated.vocabularyVersion=0;
   return validateConfig(migrated);
 }
 function initialize() {
@@ -830,7 +1178,7 @@ function initialize() {
       if (older) config=importLegacy(older);
     }
   } catch(_) {config=copy(DEFAULT_CONFIG);}
-  config=validateConfig(upgradeGuidance(config));saveConfig();
+  config=validateConfig(upgradeVocabulary(upgradeGuidance(config)));saveConfig();
   $('chat-log').innerHTML='<p class="chat-greeting">'+esc(OPENING)+'</p>';
   renderScript();preview();
   document.querySelectorAll('.parade-track').forEach(track=>track.addEventListener('click',()=>{
@@ -846,6 +1194,7 @@ function initialize() {
     selectView(chat?'chat':'rules');$(chat?'chat-tab':'explain-tab').focus();
   });
   $('chat-form').addEventListener('submit',event=>{event.preventDefault();sendMessage();});
+  $('show-outline').addEventListener('click',showOutline);
   $('chat-log').addEventListener('click',event=>{
     const button=event.target.closest('[data-explain]');if (!button) return;
     trace=chatTurns[Number(button.dataset.explain)];$('trace-input').value=trace.input;
@@ -854,7 +1203,8 @@ function initialize() {
     $('explanation').scrollIntoView({block:'start'});$('explanation').focus({preventScroll:true});
   });
   $('clear-chat').addEventListener('click',()=>{
-    chatTurns.length=0;cursors.clear();storyMemory.character=null;$('chat-log').innerHTML='<p class="chat-greeting">'+esc(OPENING)+'</p>';
+    chatTurns.length=0;lastReplies.clear();storyMemory.character=null;storyMemory.characterless=false;$('chat-log').innerHTML='<p class="chat-greeting">'+esc(OPENING)+'</p>';
+    storyNotes.length=0;skippedParts.clear();askedPart=null;completionShown=false;$('show-outline').disabled=true;
     $('chat-status').textContent='';$('chat-sentence').value='';$('chat-sentence').removeAttribute('aria-invalid');$('chat-sentence').focus();
   });
   $('trace-form').addEventListener('submit',event=>{event.preventDefault();preview();});
@@ -865,7 +1215,7 @@ function initialize() {
   $('script-body').addEventListener('click',event=>{const button=event.target.closest('[data-edit]');if (button) openEditor(selectedTopic,Number(button.dataset.edit));});
   $('script-body').addEventListener('submit',event=>{if (event.target.id==='character-words-form') {event.preventDefault();addCharacterWords();}});
   $('add-rule').addEventListener('click',()=>openEditor(selectedTopic));
-  $('restore-defaults').addEventListener('click',()=>{config=copy(DEFAULT_CONFIG);cursors.clear();selectedTopic=1;saveConfig();renderScript();preview();setStatus('Default script restored.');});
+  $('restore-defaults').addEventListener('click',()=>{config=copy(DEFAULT_CONFIG);lastReplies.clear();selectedTopic=1;saveConfig();renderScript();preview();setStatus('Default script restored.');});
   $('rule-editor').addEventListener('submit',event=>{event.preventDefault();saveEditedRule();});
   $('cancel-editor').addEventListener('click',()=>$('rule-dialog').close());
   $('delete-rule').addEventListener('click',deleteEditedRule);
