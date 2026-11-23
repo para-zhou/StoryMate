@@ -1,0 +1,29 @@
+Generation mode: built-in image_gen, transparent_background=true.
+One generation call per character. The original generated PNG files were copied without image edits.
+
+Shared prompt (used verbatim before each Subject):
+Use case: stylized-concept. Asset type: a tiny decorative character sprite for a minimal English story-building chatbot website. Create ONE isolated full-body character on a genuinely transparent background. Authentic cute 16-bit pixel art: chunky square pixel clusters, crisp stair-step edges, dark plum pixel outline, a compact limited palette, very simple details readable at 72 CSS pixels. Chibi proportions, large head, tiny body, warm friendly expression. Straight-on or slight three-quarter view, standing upright. Entire character centered and fully visible, fills about 75 percent of the square canvas with clean transparent padding. No text, labels, logos, watermarks, scenery, ground, backdrop, interface, panels, or drop shadow. Match a coherent classic fantasy game sprite set.
+
+dragon.png
+Subject: A cute mischievous baby evil dragon: plum-purple body, lavender belly, tiny horns, small bat-like wings and curled tail. Little fangs and cheeky eyebrows; adorable rather than frightening.
+
+angel.png
+Subject: A cute tiny angel: ivory tunic, small white feathered wings, a simple warm golden halo, short honey-colored hair and cheerful face.
+
+hero.png
+Subject: A cute tiny brave fantasy adventurer: short brown hair, a blue tunic and small violet cape, holding a simple tiny shield and a short sword pointed downward, friendly determined face.
+
+elf.png
+Subject: A cute tiny forest elf: pointed ears, leaf-green cap and tunic, short mint-green hair, a small leaf-tipped wand, curious friendly face.
+
+Additional mascot shared prompt (used verbatim before each Subject):
+Use case: stylized-concept. Asset type: a tiny decorative mascot sprite for a warm yellow pixel RPG dialogue interface. Create ONE isolated full-body mascot on a genuinely transparent background. Cute 16-bit pixel art matching a fantasy party of a plum-purple baby dragon, ivory angel, blue-tunic hero and green elf. Chunky square pixel clusters, crisp stair-step edges, dark plum-brown pixel outline, compact limited palette, very simple details readable at 40 CSS pixels. Tiny rounded chibi proportions, warm friendly expression. Straight-on or slight three-quarter view, standing upright, with a tiny walking-ready stance. Entire subject centered and fully visible, fills about 75 percent of the square canvas with clean transparent padding. No text, labels, logos, watermark, scenery, ground, backdrop, interface, panels, or drop shadow.
+
+dumpling.png
+Subject: One adorable soft round white mochi dumpling mascot with tiny dot eyes, a little smiling mouth, pale pink cheeks and two tiny feet. A very simple plump round silhouette.
+
+strawberry.png
+Subject: One adorable small strawberry mascot, soft coral-red fruit, a few cream pixel seeds, green leafy cap, tiny friendly face and two tiny feet. A compact rounded silhouette.
+
+cat.png
+Subject: One adorable tiny orange tabby kitten, little triangular ears, cream muzzle and belly, curled tail and short little paws. Compact, round and friendly, standing on its back paws like a tiny game companion.
