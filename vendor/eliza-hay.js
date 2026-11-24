@@ -483,11 +483,12 @@ class RuleKeyword {
         this.trace =
             TRACE_PREFIX + 'selected keyword: ' + this.keyword + '\n' +
             TRACE_PREFIX + 'input: ' + join(words) + '\n';
-        let constituents = [];
+        let success, constituents = [];
 
         let r = 0;
         while (r < this.transforms.length) {
-            [success, constituents] = match(tags, this.transforms[r].decomposition, words);
+            [success, constituents] = this.transforms[r].reassemblyRules.length
+                ? match(tags, this.transforms[r].decomposition, words) : [false, []];
             this.trace += TRACE_PREFIX + 'tested decompose pattern: (' +
                 join(this.transforms[r].decomposition) + ') ' + (success ? 'matched' : 'failed') + '\n';
             if (success)
@@ -888,7 +889,7 @@ class Eliza {
 
             if (this.rules.has(word)) {
                 let rule = this.rules.get(word);
-                if (rule.hasTransformation()) {
+                if (rule.hasTransformation() && !this.inactiveKeywords?.has(word)) {
                     if (rule.precedence > topRank) {
                         keystack.unshift(word);
                         topRank = rule.precedence;
@@ -921,6 +922,7 @@ class Eliza {
                 return '--ELIZA response creation interrupted--';
             }
             const topKeyword = keystack.shift();
+            if (this.inactiveGroups?.has(topKeyword)) continue;
             this.tracer.preTransform(topKeyword, words);
 
             if (!this.rules.has(topKeyword)) {
@@ -944,6 +946,7 @@ class Eliza {
 
             if (action === ACTION_INAPPLICABLE) {
                 this.tracer.decompFailed(true);
+                if (this.allowUnmatchedGroups) continue;
                 return this.noMatchMessages[this.limit - 1];
             }
 
@@ -2016,6 +2019,11 @@ function fillTemplate(template, parts) {
   return out.join(' ').replace(/\s+/g, ' ').replace(/\s+([,.!?'])/g, '$1').trim();
 }
 
+function isReplyTemplate(template) {
+  return template[0] !== '(' && !(template[0] === '=' && template.length === 2) &&
+    !(template[0] === 'NEWKEY' && template.length === 1);
+}
+
 class HayTrace extends nullTracer {
   constructor() {
     super();
@@ -2043,7 +2051,11 @@ class HayTrace extends nullTracer {
   usingMemory(s) { this.steps.push({ kind: 'memory-recall', text: '' }); }
   preTransform(keyword, words) {
     var previous = this.steps[this.steps.length - 1];
-    if (previous && previous.kind === 'pre' && previous.to === keyword) previous.rebuilt = words.slice();
+    if (previous?.to === keyword && (previous.kind === 'pre' || previous.kind === 'goto')) {
+      if (previous.kind === 'pre') previous.rebuilt = words.slice();
+    } else {
+      this.inputKeyword = keyword;
+    }
   }
   usingNone(script, trace) {
     this.steps.push({ kind: 'none', output: '' });
@@ -2079,13 +2091,12 @@ class HayTrace extends nullTracer {
             // applyTransformation has already advanced the cycle for this rule.
             var used = (transform.nextReassemblyRule + templates.length - 1) % templates.length;
             templates.forEach(function (template, index) {
-              if (template[0] === '(' || (template[0] === '=' && template.length === 2) ||
-                  (template[0] === 'NEWKEY' && template.length === 1)) return;
+              if (!isReplyTemplate(template)) return;
               replyOptions.push(template.slice());
               if (index === used) selectedReply = replyOptions.length;
             });
           }
-          this.steps.push({ kind: 'reassemble', keyword: keyword, template: toks, components: parts, output: fillTemplate(toks, parts), replyOptions: replyOptions, selectedReply: selectedReply });
+          this.steps.push({ kind: 'reassemble', keyword: keyword, inputKeyword: this.inputKeyword, ruleIndex: attempts.length - 1, template: toks, components: parts, output: fillTemplate(toks, parts), replyOptions: replyOptions, selectedReply: selectedReply });
         }
       }
     } else if (equiv) {
@@ -2152,16 +2163,69 @@ function buildScriptOrThrow() {
   return r[1];
 }
 
-function describeScript(script) {
+function useClassroomWording(script) {
+  const originalWords = new Map([
+    ['YOU', 'I'], ['I', 'YOU'], ['YOUR', 'MY'], ['MY', 'YOUR'],
+    ['WAS', '(* WAS WERE)'], ['DREAMT', '(* DREAMT DREAMED)'],
+    ["DON'T", "(* DON'T DONT)"], ["CAN'T", "(* CAN'T CANT)"]
+  ]);
+  const rules = keyword => script.rules.get(keyword).transforms;
+  script.rules.forEach((group, keyword) => {
+    group.wordSubstitution = '';
+    group.transforms.forEach(rule => {
+      rule.decomposition = rule.decomposition.map((word, index, parts) => {
+        if (word === 'ARE' && (keyword === 'AM' || (keyword === 'I' && parts[index - 1] === 'YOU'))) return 'AM';
+        if (word === "(* CAN'T CANNOT)") return "(* CAN'T CANNOT CANT)";
+        if (word === '(*AM IS ARE WAS)') return '(* AM IS ARE WAS WERE)';
+        return originalWords.get(word) || word;
+      });
+    });
+  });
+  script.memoryRule.transforms.forEach(rule => { rule.decomposition[1] = 'MY'; });
+
+  const iRules = rules('I');
+  const youRules = rules('YOU');
+  // In these two patterns DOCTOR's substituted YOU represents the object ME.
+  youRules[0].decomposition[3] = 'ME';
+  youRules[2].decomposition[3] = 'ME';
+
+  // A full clause can be quoted as written. Fixed pronouns still belong to the reply template.
+  iRules[11].reassemblyRules[0] = ['YOU', 'SAID', '“', '1', '”', '.'];
+  iRules[11].reassemblyRules[2] = ['WHAT', 'MAKES', 'YOU', 'SAY', '“', '1', '”', '?'];
+  youRules[3].reassemblyRules[1] = ['WHAT', 'MAKES', 'YOU', 'SAY', 'THAT', '?'];
+  const myRules = rules('MY');
+  myRules[0].reassemblyRules[1] = ['WHAT', 'DID', 'YOU', 'MEAN', 'WHEN', 'YOU', 'SAID', '“', 'MY', '4', '5', '”', '?'];
+  myRules[1].reassemblyRules[3] = ['IS', 'YOUR', '3', 'IMPORTANT', 'TO', 'YOU', '?'];
+
+  // Give contractions their own patterns so their words are never expanded in the trace.
+  const contractedRule = (rule, contraction) => new Transform(
+    [rule.decomposition[0], contraction, ...rule.decomposition.slice(3)],
+    rule.reassemblyRules.map(reply => reply.map(part => /^\d+$/.test(part) && Number(part) > 3
+      ? String(Number(part) - 1) : part))
+  );
+  script.rules.get("I'M").transforms = [
+    ...[1, 2, 6].map(index => contractedRule(iRules[index], "I'M")),
+    new Transform(['0'], iRules[11].reassemblyRules.map(reply => reply.slice()))
+  ];
+  script.rules.get("YOU'RE").transforms = [
+    contractedRule(youRules[1], "YOU'RE"),
+    new Transform(['0', "YOU'RE", '0'], youRules[3].reassemblyRules.map(reply => reply.slice()))
+  ];
+}
+
+function describeScript(script, inactiveKeywords) {
   function transformsOf(rule) {
     return (rule.transforms || []).map(function (t) {
-      return { decomposition: '(' + join(t.decomposition) + ')', reassembly: (t.reassemblyRules || []).map(function (rr) { return join(rr); }) };
+      return { decomposition: '(' + join(t.decomposition) + ')', reassembly: (t.reassemblyRules || []).map(function (rr) { return join(rr); }),
+        slotLabels: { ...t.slotLabels } };
     });
   }
   var out = [];
   script.rules.forEach(function (rule, key) {
     out.push({
       keyword: (key === SPECIAL_RULE_NONE) ? 'NONE' : key,
+      trigger: key !== SPECIAL_RULE_NONE && rule.hasTransformation() && !inactiveKeywords?.has(key),
+      enabled: !inactiveKeywords?.has(key),
       precedence: rule.getPrecedence ? rule.getPrecedence() : 0,
       substitution: rule.wordSubstitution || '',
       tags: (rule.dlistTags ? rule.dlistTags() : (rule.tags || [])).slice(),
@@ -2187,13 +2251,81 @@ function describeScript(script) {
 // replayed). session.trace(text) returns the structured trace for one turn,
 // including the current memory queue.
 window.ElizaHay = {
-  make: function () {
+  make: function ({matchOriginalWords = false} = {}) {
     var script = buildScriptOrThrow();
+    if (matchOriginalWords) useClassroomWording(script);
     var eliza = new Eliza(script.rules, script.memoryRule, new HayTrace(), 0);
+    var inactiveKeywords = new Set();
+    eliza.inactiveKeywords = inactiveKeywords;
+    var inactiveGroups = new Set();
+    eliza.inactiveGroups = inactiveGroups;
     var originals = new Map();
     var aliases = new Map();
+    var groupDefaults = new Map();
+    var replyDefaults = new WeakMap();
+    function copyRule(rule) {
+      var copy = new Transform(rule.decomposition.slice(), rule.reassemblyRules.map(function (tokens) { return tokens.slice(); }));
+      copy.slotLabels = { ...rule.slotLabels };
+      return copy;
+    }
+    function rememberReplies(rule) {
+      var templates = rule.reassemblyRules.map(function (tokens) { return tokens.slice(); });
+      var slots = new Map(rule.decomposition.map(function (_, index) {
+        var slot = String(index + 1);
+        return [slot, slot];
+      }));
+      replyDefaults.set(rule, { templates: templates, slots: slots });
+    }
+    script.rules.forEach(function (group, keyword) {
+      groupDefaults.set(keyword, group.transforms.map(copyRule));
+      group.transforms.forEach(rememberReplies);
+    });
+    function rulesFor(keyword) {
+      return script.rules.get(keyword === 'NONE' ? SPECIAL_RULE_NONE : keyword).transforms;
+    }
     return {
-      dictionary: function () { return describeScript(script); },
+      dictionary: function () { return describeScript(script, inactiveKeywords); },
+      clearConversation: function () {
+        script.memoryRule.memories.length = 0;
+        script.rules.forEach(function (rule) {
+          rule.transforms.forEach(function (transform) { transform.nextReassemblyRule = 0; });
+        });
+        eliza.limit = 1;
+      },
+      setGroupWords: function (keyword, previousWords, words) {
+        var group = script.rules.get(keyword);
+        previousWords.forEach(function (word) { inactiveKeywords.add(word); });
+        words.forEach(function (word) {
+          if (!script.rules.has(word)) {
+            const substitution = matchOriginalWords ? '' : group.wordSubstitution || keyword;
+            script.rules.set(word, new RuleKeyword(word, substitution, group.precedence, [], keyword));
+          }
+          inactiveKeywords.delete(word);
+        });
+      },
+      setGroupActive: function (keyword, active) {
+        if (active) inactiveGroups.delete(keyword);
+        else inactiveGroups.add(keyword);
+      },
+      setRulePattern: function (keyword, index, pattern, replacement, slots, labels) {
+        var rule = script.rules.get(keyword).transforms[index];
+        var baseline = replyDefaults.get(rule);
+        if (baseline && slots) {
+          baseline.slots.forEach(function (current, original) {
+            if (/^\d+$/.test(current || '')) baseline.slots.set(original, slots.get(current));
+          });
+        }
+        rule.decomposition = pattern.slice();
+        rule.slotLabels = { ...labels };
+        if (replacement) rule.reassemblyRules = [replacement.slice()];
+        else if (slots?.size) {
+          rule.reassemblyRules = rule.reassemblyRules.map(function (reply) {
+            return reply.map(function (token) { return slots.get(token) || token; });
+          });
+        }
+        rule.nextReassemblyRule = 0;
+        eliza.allowUnmatchedGroups = true;
+      },
       editRule: function (keyword, index, pattern, reply) {
         var rule = script.rules.get(keyword).transforms[index];
         if (!originals.has(rule)) originals.set(rule, {
@@ -2213,14 +2345,70 @@ window.ElizaHay = {
         (aliases.get(keyword) || []).forEach(function (word) { script.rules.delete(word); });
         var group = script.rules.get(keyword);
         words.forEach(function (word) {
-          script.rules.set(word, new RuleKeyword(word, group.wordSubstitution || keyword, group.precedence, [], keyword));
+          const substitution = matchOriginalWords ? '' : group.wordSubstitution || keyword;
+          script.rules.set(word, new RuleKeyword(word, substitution, group.precedence, [], keyword));
         });
         aliases.set(keyword, words.slice());
       },
-      addRule: function (keyword, pattern, reply) {
-        var group = new RuleKeyword(keyword, '', 20);
-        group.addTransformationRule(pattern.slice(), [reply.slice()]);
-        script.rules.set(keyword, group);
+      addRule: function (keyword, pattern, reply, labels) {
+        var group = script.rules.get(keyword);
+        var newGroup = !group;
+        if (!group) {
+          group = new RuleKeyword(keyword, '', 20);
+          script.rules.set(keyword, group);
+        }
+        var rule = new Transform(pattern.slice(), [reply.slice()]);
+        rule.slotLabels = { ...labels };
+        group.transforms.unshift(rule);
+        rememberReplies(rule);
+        if (newGroup) groupDefaults.set(keyword, [copyRule(rule)]);
+        eliza.allowUnmatchedGroups = true;
+      },
+      editReply: function (keyword, ruleIndex, optionIndex, reply, labels) {
+        var rule = rulesFor(keyword)[ruleIndex];
+        var previous = rule.reassemblyRules.filter(isReplyTemplate)[optionIndex];
+        var index = rule.reassemblyRules.indexOf(previous);
+        if (index < 0) throw new Error('Reply option not found');
+        rule.reassemblyRules[index] = reply.slice();
+        rule.slotLabels = { ...rule.slotLabels, ...labels };
+        rule.nextReassemblyRule = index;
+      },
+      deleteRule: function (keyword, index) {
+        rulesFor(keyword).splice(index, 1);
+        eliza.allowUnmatchedGroups = true;
+      },
+      restoreRules: function (keyword) {
+        var group = script.rules.get(keyword);
+        group.transforms = groupDefaults.get(keyword).map(copyRule);
+        group.transforms.forEach(rememberReplies);
+      },
+      addReply: function (keyword, index, reply) {
+        var rule = rulesFor(keyword)[index];
+        rule.reassemblyRules.push(reply.slice());
+        rule.nextReassemblyRule = rule.reassemblyRules.length - 1;
+      },
+      deleteReply: function (keyword, index, optionIndex) {
+        var rule = rulesFor(keyword)[index];
+        if (keyword === 'NONE' && rule.reassemblyRules.length < 2) return false;
+        var previous = rule.reassemblyRules.filter(isReplyTemplate)[optionIndex];
+        var rawIndex = rule.reassemblyRules.indexOf(previous);
+        if (rawIndex < 0) return false;
+        rule.reassemblyRules.splice(rawIndex, 1);
+        rule.nextReassemblyRule = 0;
+        eliza.allowUnmatchedGroups = true;
+        return true;
+      },
+      restoreReplies: function (keyword, index) {
+        var rule = rulesFor(keyword)[index];
+        var baseline = replyDefaults.get(rule);
+        if (!baseline || baseline.templates.some(function (tokens) {
+          return tokens.some(function (token) { return /^\d+$/.test(token) && !baseline.slots.get(token); });
+        })) return false;
+        rule.reassemblyRules = baseline.templates.map(function (tokens) {
+          return tokens.map(function (token) { return baseline.slots.get(token) || token; });
+        });
+        rule.nextReassemblyRule = 0;
+        return true;
       },
       trace: async function (text) {
         var tracer = new HayTrace();
@@ -2234,7 +2422,7 @@ window.ElizaHay = {
         T.memoryBefore = memBefore;
         T.words = split(elizaUppercase(text)).map(function (w) {
           var has = script.rules.has(w) ? script.rules.get(w) : null;
-          var isKey = !!(has && has.hasTransformation());
+          var isKey = !!(has && has.hasTransformation() && !inactiveKeywords.has(w));
           var sub = has ? has.applyWordSubstitution(w) : w;
           return { raw: w, sub: (sub !== w ? sub : null), keyword: isKey, rank: has ? has.getPrecedence() : 0 };
         });

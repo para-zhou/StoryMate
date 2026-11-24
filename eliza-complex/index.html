@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Chat with ELIZA and see how the 1966 DOCTOR script builds each reply.">
+  <title>ELIZA</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="vendor/eliza-hay.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <main>
+    <header class="page-header">
+      <h1>ELIZA</h1>
+      <p>Chat with the 1966 DOCTOR script and see how it builds each reply.</p>
+    </header>
+
+    <div class="tabs" role="tablist" aria-label="ELIZA views">
+      <button type="button" id="chat-tab" role="tab" aria-selected="true" aria-controls="chat-panel">Chat</button>
+      <button type="button" id="script-tab" role="tab" aria-selected="false" aria-controls="script-panel" tabindex="-1">Script</button>
+      <button type="button" id="how-tab" role="tab" aria-selected="false" aria-controls="how-panel" tabindex="-1">How it works</button>
+    </div>
+
+    <section id="chat-panel" role="tabpanel" aria-labelledby="chat-tab">
+      <div class="panel chat-window">
+        <div class="chat-heading">
+          <h2>Conversation</h2>
+          <button type="button" class="text-button" id="clear-chat" disabled>Clear chat</button>
+        </div>
+        <div id="chat-log" class="chat-log" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions">
+          <p id="starter" class="starter">Write a message or try an example.</p>
+        </div>
+        <form id="chat-form" class="chat-form">
+          <div class="examples" aria-label="Example messages">
+            <button class="example" type="button" data-example="I feel happy.">I feel happy.</button>
+            <button class="example computer-example" type="button" data-example="I use a computer for homework.">I use a <strong>computer</strong> for homework.</button>
+          </div>
+          <p id="chat-status" class="status" role="status"></p>
+          <label class="visually-hidden" for="chat-input">Your message</label>
+          <div class="compose">
+            <input id="chat-input" name="message" type="text" placeholder="I feel happy." maxlength="240" required autocomplete="off">
+            <button id="send" type="submit" class="primary">Send</button>
+          </div>
+        </form>
+      </div>
+      <section id="reply-explanation" class="trace" aria-labelledby="trace-title" hidden>
+        <div class="trace-heading">
+          <h2 id="trace-title" tabindex="-1">How ELIZA replied</h2>
+          <p id="explained-reply"></p>
+        </div>
+        <div id="trace-body"></div>
+      </section>
+    </section>
+
+    <section id="how-panel" class="panel how-panel" role="tabpanel" aria-labelledby="how-tab" hidden>
+      <h2>Inside the DOCTOR script</h2>
+      <p class="intro">DOCTOR has <strong id="keyword-count"></strong> keywords. A keyword can lead to several rules, and each rule can have several replies.</p>
+
+      <figure class="script-tree" aria-label="One keyword branches into rules, and each rule branches into reply templates">
+        <dl class="tree-example">
+          <div><dt>Original message · Find the keyword</dt><dd><strong>You</strong> surprised me.</dd></div>
+          <div><dt>Switched wording · Match a rule</dt><dd><strong>I</strong> surprised <strong>you</strong></dd></div>
+        </dl>
+        <div class="tree-keyword"><span>Keyword</span><strong>you</strong></div>
+        <ul class="tree-branches" role="list">
+          <li>
+            <div class="tree-rule">
+              <div class="tree-rule-heading"><span>Rule 3</span> <code class="pattern-token">(0 I 0 YOU)</code></div>
+              <p>Matches when the switched sentence ends in <strong>you</strong> and has an <strong>I</strong> earlier.</p>
+            </div>
+            <div class="tree-replies">
+              <strong>Replies</strong>
+              <ul role="list" aria-label="Example replies">
+                <li>Why do you think I <mark>[words in between]</mark> you?</li>
+                <li>What makes you think I <mark>[words in between]</mark> you?</li>
+              </ul>
+            </div>
+          </li>
+          <li>
+            <div class="tree-rule">
+              <div class="tree-rule-heading"><span>Rule 4</span> <code class="pattern-token">(0 I 0)</code></div>
+              <p>Matches if <strong>I</strong> appears anywhere in the switched sentence.</p>
+            </div>
+            <div class="tree-replies">
+              <strong>Replies</strong>
+              <ul role="list" aria-label="Example replies">
+                <li>Oh, I <mark>[words after I]</mark>.</li>
+                <li>What are your feelings now?</li>
+              </ul>
+            </div>
+          </li>
+        </ul>
+        <figcaption>Two of the rules for <strong>you</strong> and some of their reply templates. The green spaces take words from the message after the perspective switch.</figcaption>
+      </figure>
+
+      <h3>From message to reply</h3>
+      <p class="intro">Try the message <strong>“You surprised me.”</strong></p>
+      <ol class="workflow" role="list">
+        <li><span class="step-number" aria-hidden="true">1</span><div><strong>Find the keyword</strong><p>ELIZA sees <strong>you</strong> in what you typed and keeps its rule list.</p></div></li>
+        <li><span class="step-number" aria-hidden="true">2</span><div><strong>Switch perspective</strong><p>During the same scan, “You surprised me” becomes “I surprised you” so the words fit naturally into the reply.</p></div></li>
+        <li><span class="step-number" aria-hidden="true">3</span><div><strong>Match a rule</strong><p>Rule 3 matches <strong>I surprised you</strong>. The word between <strong>I</strong> and <strong>you</strong> forms part 3, <strong class="workflow-reuse">surprised</strong>.</p></div></li>
+        <li><span class="step-number" aria-hidden="true">4</span><div><strong>Build the reply</strong><p>ELIZA fills the space in a prepared reply. “Why do you think I <strong class="workflow-reuse">surprised</strong> you?”</p></div></li>
+      </ol>
+      <button type="button" class="primary" id="try-workflow">Try it in Chat</button>
+    </section>
+
+    <section id="script-panel" class="panel script-panel" role="tabpanel" aria-labelledby="script-tab" hidden>
+      <h2>Work with the script</h2>
+      <fieldset class="editor-mode">
+        <legend class="visually-hidden">Choose what to do</legend>
+        <label><input type="radio" name="script-mode" value="edit" checked><span>Edit existing</span></label>
+        <label><input type="radio" name="script-mode" value="add"><span>Add a rule</span></label>
+      </fieldset>
+      <form id="script-form">
+        <fieldset class="editor-step">
+          <legend>1. Keyword</legend>
+          <label for="edit-group">Keyword group</label>
+          <select id="edit-group"></select>
+          <label for="edit-aliases">Extra keywords for this group</label>
+          <input id="edit-aliases" type="text" placeholder="Separate extra words with commas" maxlength="100" autocomplete="off">
+        </fieldset>
+        <fieldset class="editor-step">
+          <legend>2. Rule</legend>
+          <label for="edit-rule">Rule to edit</label>
+          <select id="edit-rule"></select>
+          <div id="edit-pattern" class="edit-rule-preview"></div>
+          <label for="edit-condition">Match when the switched wording</label>
+          <select id="edit-condition">
+            <option value="original">Fits the original pattern</option>
+            <option value="contains">Contains these words</option>
+            <option value="any">Can be anything</option>
+          </select>
+          <div id="edit-phrase-field" hidden>
+            <label for="edit-phrase">Words to match</label>
+            <input id="edit-phrase" type="text" placeholder="you feel" maxlength="64" autocomplete="off">
+          </div>
+          <p id="edit-condition-help" class="help"></p>
+        </fieldset>
+        <fieldset class="editor-step">
+          <legend>3. Reply</legend>
+          <label for="template">Reply template</label>
+          <input id="template" type="text" aria-describedby="template-help" maxlength="160" autocomplete="off" required>
+          <p id="template-help" class="help"></p>
+        </fieldset>
+        <label for="edit-test">Message to test <span class="help">(optional)</span></label>
+        <input id="edit-test" type="text" maxlength="240" autocomplete="off">
+        <div class="editor-actions">
+          <button type="submit" class="primary" id="apply-template">Save and try</button>
+          <button type="button" class="text-button" id="restore-template">Restore this rule</button>
+        </div>
+        <p id="script-status" class="status" role="status"></p>
+      </form>
+      <form id="add-rule-form" hidden>
+        <p class="intro">Give ELIZA a rule for talking about AI. What could it ask about using AI at school?</p>
+        <fieldset class="editor-step">
+          <legend>1. Keyword</legend>
+          <label for="add-keyword">New keyword</label>
+          <input id="add-keyword" type="text" value="AI" maxlength="24" autocomplete="off" required>
+        </fieldset>
+        <fieldset class="editor-step">
+          <legend>2. Rule</legend>
+          <label for="add-condition">Match when the switched wording</label>
+          <select id="add-condition">
+            <option value="any">Can be anything</option>
+            <option value="contains">Contains these words</option>
+          </select>
+          <div id="add-phrase-field" hidden>
+            <label for="add-phrase">Words to match</label>
+            <input id="add-phrase" type="text" placeholder="for homework" maxlength="64" autocomplete="off">
+          </div>
+        </fieldset>
+        <fieldset class="editor-step">
+          <legend>3. Reply</legend>
+          <label for="add-reply">Reply template</label>
+          <input id="add-reply" type="text" value="How do you use AI when you study?" aria-describedby="add-template-help" maxlength="160" autocomplete="off" required>
+          <p id="add-template-help" class="help"></p>
+        </fieldset>
+        <label for="add-test">Message to test <span class="help">(optional)</span></label>
+        <input id="add-test" type="text" value="I use AI for homework." maxlength="240" autocomplete="off">
+        <div class="editor-actions"><button type="submit" class="primary" id="add-rule">Add and try</button></div>
+        <p id="add-status" class="status" role="status"></p>
+      </form>
+    </section>
+
+    <footer>
+      <span>CUHK-JC AI FOR THE FUTURE</span>
+      <a href="https://findingeliza.org/how.html" target="_blank" rel="noopener noreferrer">About the original ELIZA</a>
+    </footer>
+  </main>
+</body>
+</html>

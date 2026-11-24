@@ -1,35 +1,28 @@
 'use strict';
 
-const STARTER = 'I feel happy.';
-const WORKFLOW_SAMPLE = 'You surprised me.';
-const makeEngine = window.ElizaHay.make;
 const byId = id => document.getElementById(id);
-const log = byId('chat-log');
-const explanation = byId('reply-explanation');
-const traceBody = byId('trace-body');
-const message = byId('chat-input');
+const keywordSelect = byId('keyword');
+const wordList = byId('keyword-words');
+const ruleList = byId('rule-list');
+const replyList = byId('reply-list');
+const addWordRow = byId('add-word').closest('li');
+const addRuleRow = byId('add-rule').closest('li');
+const addReplyRow = byId('add-reply').closest('li');
+const chatLog = byId('chat-log');
+const input = byId('chat-input');
+const defaultKeyword = 'COMPUTER';
 const examples = [...document.querySelectorAll('[data-example]')];
-const tabs = [...document.querySelectorAll('[role="tab"]')];
-const pendingControls = [byId('send'), byId('apply-template'), byId('restore-template'), byId('add-rule'), byId('try-workflow'), ...examples];
-const perspectiveWords = new Set(['I', 'ME', 'MY', 'MYSELF', 'YOU', 'YOUR', 'YOURSELF', "I'M", "YOU'RE", 'AM']);
-
-let engine = makeEngine();
-const originalGroups = new Map(engine.dictionary().filter(entry => !entry.isMemory && entry.keyword !== 'NONE' && entry.transforms.length).map(entry => [entry.keyword, entry]));
-const ruleEdits = new Map();
-const userRules = new Map();
-const keywordAliases = new Map();
-let keywordEntries;
-let keywordList;
+const chatControls = [input, byId('send'), ...examples];
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+const engine = window.ElizaHay.make({matchOriginalWords:true});
+const groupNames = new Set();
+const wordDefaults = new Map();
+const deletedGroups = new Map();
+let keywords;
+let boardSelection;
+let replyEditor;
 let pending = false;
-let activeExplanationButton = null;
-
-function syncDictionary() {
-  const entries = engine.dictionary().filter(entry => !entry.isMemory);
-  keywordEntries = new Map(entries.map(entry => [entry.keyword, entry]));
-  keywordList = entries.filter(entry => entry.keyword !== 'NONE' && (entry.transforms.length || entry.link))
-    .sort((first, second) => second.precedence - first.precedence || first.keyword.localeCompare(second.keyword, 'en'));
-  byId('keyword-count').textContent = String(keywordList.length);
-}
+let animationTimer;
 
 function element(tag, text, className) {
   const node = document.createElement(tag);
@@ -38,820 +31,817 @@ function element(tag, text, className) {
   return node;
 }
 
-function inlineWords(text) {
+function readable(text) {
   return text.toLowerCase().replace(/\b(?:i|ai|gpt)\b/g, word => word.toUpperCase()).replace(/\bchatgpt\b/g, 'ChatGPT');
 }
 
-function displayReply(text) {
-  const line = inlineWords(text).replace(/\s+([,?.!])/g, '$1').replace(/(^|[.!?]\s+)[a-z]/g, word => word.toUpperCase());
+function sentence(text) {
+  const line = readable(text).replace(/\s+/g, ' ').replace(/“\s+/g, '“').replace(/\s+([,.!?”])/g, '$1').trim()
+    .replace(/(^|[.!?]\s+)[a-z]/g, word => word.toUpperCase());
   if (!line || /[.!?]$/.test(line)) return line;
-  const question = /^(?:am|are|can|could|do|does|did|have|how|in what|is|should|what|when|where|which|who|why|will|would|were)\b/i.test(line);
+  const question = /^(?:am|are|can|can't|could|do|don't|does|did|have|how|in what|is|isn't|of what|should|what|when|where|which|who|why|will|would|wouldn't|were)\b/i.test(line);
   return line + (question ? '?' : '.');
 }
 
-function appendTokens(container, words, renderWord) {
-  words.forEach((word, index) => {
-    if (index > 0 && !/^[,.!?]$/.test(word)) container.append(' ');
-    container.append(renderWord(word, index));
-  });
+function slotTag(name) {
+  return '[' + (name.length === 1 ? name.toUpperCase() : name) + ']';
 }
 
-function appendWordTiles(container, text, highlight) {
-  let cursor = 0;
-  for (const match of text.matchAll(/\[\d+\]|[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*/gu)) {
-    const word = match[0];
-    const tile = element('span', word, 'word-token');
-    const slot = /^\[(\d+)\]$/.exec(word);
-    if (slot) tile.dataset.matchPart = slot[1];
-    else if (typeof highlight === 'number') tile.dataset.matchPart = String(highlight);
-    else if (highlight) tile.classList.add(highlight);
-    container.append(text.slice(cursor, match.index), tile);
-    cursor = match.index + word.length;
-  }
-  container.append(text.slice(cursor));
+function formatTemplate(tokens, parts, names, terms) {
+  const formatted = sentence(tokens.map(token => /^\d+$/.test(token)
+    ? (parts ? parts[Number(token) - 1] || '' : names.has(token) ? slotTag(names.get(token)) : terms[Number(token) - 1] || '')
+    : token).join(' '));
+  return parts ? formatted : formatted.replace(/\[([^\[\]]+)\]/g, (_, name) => slotTag(name.toLowerCase()));
 }
 
-function step(list, label) {
-  const block = element('li', undefined, 'trace-step');
-  const heading = element('h3', undefined, 'step-label');
-  const number = element('span', String(list.children.length + 1), 'step-number');
-  const body = element('div', undefined, 'step-body');
-  heading.tabIndex = -1;
-  number.setAttribute('aria-hidden', 'true');
-  heading.append(number, ' ', label);
-  block.append(heading, body);
-  list.append(block);
-  return body;
+function replySlots(rule) {
+  return [...new Set(rule.reassembly.flatMap(option => option.split(' ').filter(token => /^\d+$/.test(token))))]
+    .sort((a, b) => Number(a) - Number(b));
 }
 
-function showKeywords(list, turn) {
-  const item = step(list, 'Find the keywords');
-  const source = element('div', undefined, 'token-line word-check');
-  const status = element('p', undefined, 'keyword-status');
-  status.setAttribute('role', 'status');
-  source.setAttribute('role', 'group');
-  source.setAttribute('aria-label', 'Words in your message');
-  const dictionary = element('details', undefined, 'keyword-dictionary');
-  const summary = element('summary', 'View all ' + keywordList.length + ' keywords');
-  const ranks = element('dl', undefined, 'keyword-ranks');
-  const rankLists = new Map();
-  const dictionaryEntries = new Map(keywordList.map(({keyword:word, precedence:rank}) => {
-    if (!rankLists.has(rank)) {
-      const group = element('div');
-      const words = element('ul', undefined, 'keyword-list');
-      words.setAttribute('role', 'list');
-      const definition = element('dd');
-      definition.append(words);
-      group.append(element('dt', 'Rank ' + rank), definition);
-      ranks.append(group);
-      rankLists.set(rank, words);
-    }
-    const entry = element('li', word, word === 'COMPUTER' ? 'computer-keyword' : undefined);
-    rankLists.get(rank).append(entry);
-    return [word, entry];
-  }));
-  dictionary.append(summary, ranks);
-
-  const matches = new Map(turn.keystack.map(candidate => [candidate.word, candidate.rank]));
-  const chosen = turn.keystack[0];
-  const start = turn.clauseStart;
-  const end = start + turn.clauseWords.length;
-  const matchedButtons = [];
-  appendTokens(source, turn.sourceWords, (word, index) => {
-    const normalized = inlineWords(word);
-    const readable = index === 0 ? normalized[0].toUpperCase() + normalized.slice(1) : normalized;
-    if (word === '.' || word === ',' || word === 'BUT') {
-      const delimiter = element('span', readable, 'word-token boundary-token');
-      delimiter.title = 'Clause boundary';
-      return delimiter;
-    }
-    if (!/[A-Z0-9]/.test(word)) return readable;
-
-    const inClause = index >= start && index < end;
-    const button = element('button', readable, 'word-token');
-    button.type = 'button';
-    if (inClause && matches.has(word)) matchedButtons.push([button, word]);
-    button.addEventListener('click', () => {
-      const entry = dictionaryEntries.get(word);
-      button.dataset.check = entry ? 'found' : 'missing';
-      if (entry) entry.classList.add('keyword-found');
-      status.textContent = word + (entry
-        ? ' is on the keyword list.' + (inClause ? '' : ' ELIZA stopped before this word.')
-        : ' is absent from the keyword list.');
-    });
-    return button;
-  });
-
-  const result = element('div', undefined, 'keyword-result');
-  result.hidden = true;
-  if (chosen) {
-    const inOrder = [...new Set(matchedButtons.map(([, word]) => word))];
-    const found = element('ul', undefined, 'keyword-matches');
-    found.setAttribute('aria-label', 'Keywords found and their rule groups');
-    inOrder.forEach(word => {
-      const entry = keywordEntries.get(word);
-      const count = entry.transforms.length;
-      const group = count === 0 && entry.link
-        ? 'uses the rules for ' + entry.link
-        : count + (count === 1 ? ' rule' : ' rules');
-      const row = element('li');
-      row.append(element('strong', word), ' · rank ' + matches.get(word) + ' · ' + group);
-      found.append(row);
-    });
-    const decision = element('p');
-    decision.append('ELIZA starts with the rules for ', element('strong', chosen.word));
-    if (matches.size > 1) {
-      const tied = [...matches].some(([word, rank]) => word !== chosen.word && rank === chosen.rank);
-      decision.append(tied ? ' because it appears earliest among the highest-ranked keywords' : ' because it has the highest rank');
-    }
-    decision.append('.');
-    result.append(found, decision);
-    if (start > 0 || end < turn.sourceWords.length - 1) {
-      result.append(element('p', 'ELIZA uses the first clause that contains a keyword.'));
-    }
-  } else {
-    result.append(element('p', 'ELIZA found no keywords in this message.'));
-  }
-
-  const reveal = element('button', "Show ELIZA’s matches", 'secondary trace-action');
-  reveal.type = 'button';
-  item.append(
-    element('p', 'ELIZA scans your message from left to right. Each keyword it finds points to the group of rules it can try.'),
-    source, status, dictionary,
-    element('p', 'Higher rank means higher priority. Click a word in your message to check the list.', 'step-detail'),
-    reveal, result
-  );
-  return {reveal, result, matchedButtons, dictionaryEntries};
-}
-
-function showRewrites(list, turn) {
-  const rewrites = new Map();
-  turn.clauseWords.forEach((word, index) => {
-    const before = turn.sourceWords[turn.clauseStart + index];
-    if (word !== before) rewrites.set(before, word);
-  });
-  const swap = [...rewrites.keys()].some(word => perspectiveWords.has(word));
-  const item = step(list, swap || !rewrites.size ? 'Switch perspective' : 'Apply substitutions');
-  const purpose = swap || !rewrites.size
-    ? 'During the same scan, the script switches words like “I” and “you” so phrases from your message fit naturally into a reply.'
-    : 'During the same scan, ELIZA can replace a word with another form the rules can recognize.';
-  item.append(element('p', purpose + ' The original words still determine which rule groups are used.'));
-  const changes = element('p', undefined, 'step-detail');
-  if (!rewrites.size) {
-    changes.append(turn.clauseWords.length ? 'The words in this part of the message stay the same.' : 'No part of this message was passed to a keyword rule.');
-  } else {
-    [...rewrites.entries()].forEach(([before, after], index) => {
-      if (index > 0) changes.append(', ');
-      changes.append(element('code', before + ' → ' + after));
-    });
-    changes.append('.');
-  }
-  item.append(changes);
-  if (!turn.clauseWords.length) return;
-  const line = element('p', undefined, 'token-line');
-  appendTokens(line, turn.clauseWords, (word, index) => {
-    const changed = word !== turn.sourceWords[turn.clauseStart + index];
-    const fragment = document.createDocumentFragment();
-    appendWordTiles(fragment, inlineWords(word), changed ? 'swapped' : undefined);
-    return fragment;
-  });
-  item.append(line);
-}
-
-function patternLine(tokens) {
-  const line = element('p', undefined, 'pattern-line');
-  if (tokens.length === 1 && tokens[0] === '0') {
-    line.textContent = 'Accepts any wording.';
-    return line;
-  }
-
-  let phrase = [];
-  function addPart(text, type = '') {
-    if (line.hasChildNodes()) line.append(' ');
-    const part = element('span', text, 'pattern-part');
-    if (type) part.classList.add(type);
-    line.append(part);
-  }
-  for (const token of tokens) {
-    if (!/^[\d(]/.test(token)) {
-      phrase.push(token);
-      continue;
-    }
-    if (phrase.length) {
-      addPart(inlineWords(phrase.join(' ')), 'literal');
-      phrase = [];
-    }
-    if (token === '0') addPart('any words', 'flexible');
-    else if (/^\d+$/.test(token)) addPart(token + (token === '1' ? ' word' : ' words'), 'flexible');
-    else if (token.startsWith('(*')) addPart(inlineWords(token.slice(2, -1).trim().split(/\s+/).join(' or ')));
-    else if (token.startsWith('(/')) addPart('a ' + token.slice(2, -1).trim().toLowerCase() + ' word');
-  }
-  if (phrase.length) addPart(inlineWords(phrase.join(' ')), 'literal');
-  return line;
-}
-
-function ruleList(keyword, rules, matchedIndex) {
-  if (rules.length < 2) return null;
-
-  const details = element('details', undefined, 'rule-list');
-  const rows = element('ol');
-  rows.setAttribute('role', 'list');
-  rules.forEach((rule, index) => {
-    const pattern = rule.decomposition.slice(1, -1);
-    const row = element('li');
-    row.append(element('span', 'Rule ' + (index + 1), 'rule-position'), ' ');
-    if (index === matchedIndex) {
-      row.className = 'selected-rule';
-      row.append(element('strong', '★ Matched', 'match-tag'), ' ');
-    }
-    row.append(patternLine(pattern.match(/\([^()]*\)|[^\s()]+/g)));
-    rows.append(row);
-  });
-  details.append(element('summary', 'All ' + rules.length + ' rules for “' + inlineWords(keyword) + '”'), rows);
-  return details;
-}
-
-function patternExample(tokens, components) {
-  const example = element('div', undefined, 'pattern-example');
-  const formal = element('p', undefined, 'token-line formal-pattern');
-  const captured = element('p', undefined, 'token-line matched-sentence');
-  const multipart = tokens.length > 1;
-  if (multipart) captured.classList.add('has-parts');
-  formal.append('(');
-  tokens.forEach((token, index) => {
-    const number = index + 1;
-    const pattern = element('code', token, 'pattern-token');
-    pattern.dataset.matchPart = String(number);
-    pattern.title = 'Part ' + number;
-    if (index) formal.append(' ');
-    formal.append(pattern);
-
-    const part = element('span', undefined, 'matched-segment');
-    const fragment = components[index];
-    if (multipart) {
-      const label = element('span', 'Part ' + number, 'part-label');
-      label.dataset.matchPart = String(number);
-      part.append(label, ' ');
-    }
-    const words = element('span', undefined, 'matched-words');
-    if (fragment) appendWordTiles(words, inlineWords(fragment), number);
-    else {
-      const empty = element('span', 'No words', 'word-token empty-part');
-      empty.dataset.matchPart = String(number);
-      words.append(empty);
-    }
-    part.append(words);
-    if (index) captured.append(' ');
-    captured.append(part);
-  });
-  formal.append(')');
-  example.append(element('p', 'DOCTOR pattern', 'pattern-label'), formal);
-  if (tokens.includes('0')) {
-    const note = element('p', undefined, 'notation-note');
-    note.append(element('code', '0'), ' matches any number of words, including none.');
-    example.append(note);
-  }
-  if (tokens.some(token => token.startsWith('(*'))) {
-    const note = element('p', undefined, 'notation-note');
-    note.append(element('code', '*'), ' before a list means match one word from that list.');
-    example.append(note);
-  }
-  const evidence = element('div', undefined, 'matched-evidence');
-  evidence.append(element('p', multipart ? 'Matched parts, numbered from left to right' : 'Words matched by this rule', 'pattern-label'), captured);
-  example.append(evidence);
-  return example;
-}
-
-function showPattern(list, turn, match) {
-  const item = step(list, 'Match the pattern');
-  const fallback = turn.steps.some(event => event.kind === 'none');
-  const recall = turn.steps.find(event => event.kind === 'memory-recall');
-  if (recall) {
-    item.append('The memory queue supplies this turn.');
-    return;
-  }
-
-  const routing = turn.steps.filter(event => ['goto', 'pre', 'newkey'].includes(event.kind));
-  routing.forEach(event => {
-    const line = element('p', undefined, 'step-detail');
-    if (event.kind === 'goto') {
-      const inputAlias = keywordEntries.get(event.from)?.link === event.to &&
-        turn.keystack.some(candidate => candidate.word === event.from);
-      if (inputAlias) {
-        line.append('Input keyword ', element('strong', '“' + inlineWords(event.from) + '”'), '. The DOCTOR script uses the ',
-          element('strong', '“' + inlineWords(event.to) + '”'), ' rule group for that keyword.');
-      } else {
-        line.append('The ', element('code', event.from), ' rule group continues in the ', element('code', event.to), ' rule group.');
-      }
-    } else if (event.kind === 'pre') {
-      line.append(element('code', event.from), ' rewrites the clause for ', element('code', event.to), '.');
-    } else line.append(element('code', event.from), ' moves on to the next keyword.');
-    item.append(line);
-    if (event.kind === 'pre' && event.rebuilt.length) {
-      const rewritten = element('p', undefined, 'token-line');
-      appendWordTiles(rewritten, inlineWords(event.rebuilt.join(' ')));
-      item.append(rewritten);
-    }
-  });
-
-  if (fallback || !match) {
-    item.append(element('strong', 'No match → General reply', 'fallback-path'));
-    return;
-  }
-
-  const winner = element('div', undefined, 'matched-rule');
-  const header = element('p', undefined, 'match-heading');
-  const rules = keywordEntries.get(match.keyword)?.transforms ?? [];
-  const matchedPattern = '(' + match.rawPattern.join(' ') + ')';
-  const matchedIndex = rules.findIndex(rule => rule.decomposition === matchedPattern);
-  header.append(element('strong', '★ Matched rule', 'match-tag'), ' ', element('span', 'Rule group “' + inlineWords(match.keyword) + '”'));
-  if (matchedIndex >= 0) header.append(' ', element('strong', 'Rule ' + (matchedIndex + 1) + ' of ' + rules.length, 'rule-position'));
-  const anyWording = match.rawPattern.length === 1 && match.rawPattern[0] === '0';
-  const condition = patternLine(match.rawPattern);
-  if (!anyWording) condition.prepend(element('span', 'Looks for', 'pattern-label'), ' ');
-  winner.append(header, condition, patternExample(match.rawPattern, match.components));
-  item.append(winner);
-  const allRules = ruleList(match.keyword, rules, matchedIndex);
-  if (allRules) item.append(allRules);
-}
-
-function displayTemplate(tokens) {
-  return displayReply(tokens.map(token => /^\d+$/.test(token) ? '[' + token + ']' : token).join(' '));
-}
-
-function showReplyOptions(item, build, general) {
-  const {replyOptions, selectedReply} = build;
-  const count = replyOptions.length;
-  const title = general
-    ? count + ' general replies'
-    : count + (count === 1 ? ' reply option' : ' reply options');
-  const heading = element('p', undefined, 'reply-options-heading');
-  heading.append(element('strong', title), ' ',
-    element('span', 'Option ' + selectedReply + ' used this turn', 'match-tag'));
-  item.append(heading);
-  if (count > 1) item.append(element('p', 'The script cycles through the rule’s options in order.', 'step-detail'));
-
-  const list = element('ol', undefined, 'reply-options');
-  list.setAttribute('role', 'list');
-  replyOptions.forEach((option, index) => {
-    const row = element('li');
-    const text = displayTemplate(option);
-    const selected = index + 1 === selectedReply;
-    const sentence = element('p');
-    if (selected) {
-      row.className = 'chosen-reply';
-      row.setAttribute('aria-current', 'true');
-    }
-    if (general && selected) {
-      sentence.className = 'token-line';
-      appendWordTiles(sentence, text);
+function captureNames(rule) {
+  const terms = ruleTerms(rule);
+  const explicitSlots = Object.keys(rule.slotLabels || {});
+  const positions = [...new Set([...replySlots(rule), ...explicitSlots])]
+    .filter(slot => explicitSlots.includes(slot) || /^[\d(]/.test(terms[Number(slot) - 1] || ''))
+    .sort((a, b) => Number(a) - Number(b));
+  const names = new Map();
+  const reservedNames = new Set(positions.map(slot => rule.slotLabels?.[slot]).filter(name => /^slot [1-9]\d*$/.test(name)));
+  let next = 1;
+  for (const slot of positions) {
+    const preferred = rule.slotLabels?.[slot];
+    if (reservedNames.has(preferred)) {
+      names.set(slot, preferred);
     } else {
-      sentence.textContent = text;
+      while (reservedNames.has('slot ' + next)) next++;
+      names.set(slot, 'slot ' + next++);
     }
-    row.append(element('span', 'Option ' + (index + 1), 'reply-option-number'), ' ', sentence);
-    list.append(row);
+  }
+  return names;
+}
+
+function ruleGroup(keyword) {
+  let entry = keywords.get(keyword);
+  const seen = new Set();
+  while (entry && !entry.transforms.length && entry.link && !seen.has(entry.keyword)) {
+    seen.add(entry.keyword);
+    entry = keywords.get(entry.link);
+  }
+  return entry;
+}
+
+function ruleTerms(rule) {
+  return rule.decomposition.slice(1, -1).match(/\([^()]*\)|[^\s()]+/g) || [];
+}
+
+function conditionWords(term) {
+  if (term.startsWith('(*')) return term.slice(2, -1).trim().split(/\s+/);
+  if (!term.startsWith('(/')) return [];
+  const tags = term.slice(2, -1).trim().split(/\s+/);
+  return [...keywords.values()]
+    .filter(entry => tags.some(tag => entry.tags.includes(tag)))
+    .map(entry => entry.keyword);
+}
+
+function conditionText(term) {
+  const words = conditionWords(term);
+  const separator = words.length > 3 ? ' / ' : '/';
+  return words.length ? readable(words.join(separator)) : readable(term.replace(/^\((.*)\)$/, '$1'));
+}
+
+function patternParts(rule) {
+  const names = captureNames(rule);
+  return ruleTerms(rule).map((term, index) => {
+    const slot = names.get(String(index + 1));
+    const condition = conditionText(term);
+    if (slot) return slotTag(slot).slice(0, -1) + (term === '0' ? '' : ': ' + condition) + ']';
+    if (term === '0') return '*';
+    return term.startsWith('(') ? '[' + condition + ']' : condition;
   });
-  if (general) item.append(list);
-  else {
-    const details = element('details', undefined, 'trace-more');
-    details.append(element('summary', 'View reply options'), list);
-    item.append(details);
-  }
 }
 
-function showReplyAssembly(item, turn, build, reply) {
-  if (turn.steps.some(event => event.kind === 'memory-recall')) {
-    item.append('The reply uses the oldest line saved from an earlier turn.');
-  }
-  if (build) {
-    const line = element('p', undefined, 'token-line');
-    appendWordTiles(line, displayTemplate(build.template));
-    item.append(element('p', 'Template', 'token-caption'), line);
-  }
+function termMeaning(term) {
+  const words = conditionWords(term).map(readable);
+  if (words.length > 1) return 'one of ' + new Intl.ListFormat('en', {type:'disjunction'}).format(words);
+  if (words.length === 1) return 'the word “' + words[0] + '”';
+  if (/^[1-9]\d*$/.test(term)) return term + (term === '1' ? ' word' : ' words');
+  return 'the word “' + conditionText(term) + '”';
+}
 
-  const slots = build ? [...new Set(build.template.filter(token => /^\d+$/.test(token)))] : [];
-  if (slots.length) {
-    slots.forEach(slot => {
-      const result = element('p', undefined, 'token-line');
-      const reused = build.components[Number(slot) - 1];
-      const reference = element('code', '[' + slot + ']', 'pattern-token');
-      reference.dataset.matchPart = slot;
-      result.append(reference, ' inserts part ' + slot + ' of the match, which is ');
-      if (reused) appendWordTiles(result, inlineWords(reused), Number(slot));
-      else result.append(element('em', '(empty)', 'empty-part'));
-      item.append(result);
-    });
-  } else if (build) {
-    item.append(element('p', 'This template has no slots to fill.', 'step-detail'));
-  }
+function showCaptureGuide(rule) {
+  const guide = byId('capture-guide');
+  guide.replaceChildren();
+  if (!rule) return;
+  const names = captureNames(rule);
+  const terms = ruleTerms(rule);
+  if (names.size < 2 && ![...names.keys()].some(slot => terms[Number(slot) - 1] !== '0')) return;
 
-  const output = element('p', undefined, 'token-line');
-  if (build && slots.length && build.output === turn.output.replace(/\s+([,?.!])/g, '$1')) {
-    const segments = build.template.map(token => /^\d+$/.test(token) ? build.components[Number(token) - 1] : token);
-    const visibleSegments = segments.filter(Boolean).join(' ');
-    if (displayReply(visibleSegments) === reply) {
-      let cursor = 0;
-      build.template.forEach((token, index) => {
-        const segment = segments[index];
-        if (!segment) return;
-        const start = reply.toLowerCase().indexOf(segment.toLowerCase(), cursor);
-        if (start < 0) return;
-        appendWordTiles(output, reply.slice(cursor, start));
-        appendWordTiles(output, reply.slice(start, start + segment.length), /^\d+$/.test(token) ? Number(token) : undefined);
-        cursor = start + segment.length;
-      });
-      appendWordTiles(output, reply.slice(cursor));
+  names.forEach((name, slot) => {
+    const index = Number(slot) - 1;
+    const term = terms[index];
+    if (!term) return;
+    let meaning = term === '0' ? 'Any words matched by this part' : termMeaning(term);
+    if (term === '(/FAMILY)') meaning = 'The family word from your message';
+    if (term === '0' && index > 0 && terms[index - 1] !== '0') {
+      const previousSlot = names.get(String(index));
+      meaning = 'Words after ' + (previousSlot ? slotTag(previousSlot) : termMeaning(terms[index - 1]));
     }
-  }
-  if (!output.hasChildNodes()) appendWordTiles(output, reply);
-  item.append(element('p', 'Reply', 'token-caption'), output);
+    const row = element('div');
+    row.append(element('dt', slotTag(name), 'pattern-capture'), ' ',
+      element('dd', meaning[0].toUpperCase() + meaning.slice(1)));
+    guide.append(row);
+  });
 }
 
-function showBuild(list, turn, build, reply) {
-  const item = step(list, 'Build the reply');
-  const general = turn.steps.some(event => event.kind === 'none');
-  const hasOptions = build?.selectedReply > 0;
-  if (hasOptions) showReplyOptions(item, build, general);
-  if (!general || !hasOptions) showReplyAssembly(item, turn, build, reply);
-  const stored = turn.steps.filter(event => event.kind === 'memory-store');
-  if (stored.length) {
-    const memory = element('details', undefined, 'trace-more');
-    memory.append(element('summary', 'Memory saved for later'));
-    stored.forEach(event => {
-      const line = element('p', undefined, 'token-line');
-      appendWordTiles(line, displayReply(event.text));
-      memory.append(line);
-    });
-    item.append(memory);
-  }
+function wordsForGroup(keyword) {
+  const words = [...keywords.values()].filter(entry => entry.enabled &&
+    ((groupNames.has(entry.keyword) && entry.keyword === keyword) ||
+      (entry.link && ruleGroup(entry.keyword)?.keyword === keyword)));
+  return words.map(entry => entry.keyword).sort((a, b) => a.localeCompare(b, 'en'));
 }
 
-function createTrace(turn, reply) {
-  const steps = element('ol', undefined, 'steps');
-  steps.setAttribute('role', 'list');
-  const build = turn.steps.findLast(event => event.kind === 'reassemble');
+function browsingOptions(rule, visited = new Set()) {
+  visited.add(rule);
+  if (rule.reassembly.length === 1 && rule.reassembly[0] === 'NEWKEY') {
+    const fallback = browsingOptions(keywords.get('NONE').transforms[0], visited);
+    return {...fallback, triesNextKeyword:true};
+  }
+  const replies = [];
+  const destinations = [];
+  const names = captureNames(rule);
+  const terms = ruleTerms(rule);
+  let linkedGroup;
+  rule.reassembly.forEach(option => {
+    if (option === 'NEWKEY') destinations.push('Tries another keyword.');
+    else if (option.startsWith('=') || option.startsWith('(')) {
+      const destination = /=\s*([A-Z'-]+)/.exec(option)?.[1];
+      if (!destination) return;
+      const target = deletedGroups.has(destination) ? null : ruleGroup(destination);
+      const targetRule = target?.transforms[0];
+      if (rule.reassembly.length === 1 && target?.transforms.length === 1 &&
+          targetRule.decomposition === '(0)' && !visited.has(targetRule)) {
+        const linked = browsingOptions(targetRule, visited);
+        if (linked.replies.length && !linked.triesNextKeyword) {
+          replies.push(...linked.replies);
+          linkedGroup = linked.linkedGroup || target.keyword;
+          return;
+        }
+      }
+      destinations.push(deletedGroups.has(destination) ? 'The ' + destination + ' rule group was deleted.'
+        : 'Continues in the ' + destination + ' rule group.');
+    } else replies.push(formatTemplate(option.split(' '), null, names, terms));
+  });
+  return {replies, destinations, linkedGroup};
+}
+
+function selectionFor(turn, reply) {
   const match = turn.steps.findLast(event => event.kind === 'decompose');
-  const {reveal, result, matchedButtons, dictionaryEntries} = showKeywords(steps, turn);
-  showRewrites(steps, turn);
-  showPattern(steps, turn, match);
-  showBuild(steps, turn, build, reply);
+  const build = turn.steps.findLast(event => event.kind === 'reassemble');
+  if (!match || !build) {
+    const saved = turn.steps.some(event => event.kind === 'memory-recall');
+    return {keyword:'', ruleIndex:null, usedReply:0, replies:[reply], kind:saved ? 'saved' : 'general'};
+  }
 
-  const blocks = [...steps.children];
-  blocks.forEach((block, index) => {
-    block.hidden = index > 0;
-    const nextBlock = blocks[index + 1];
-    if (!nextBlock) return;
-    const next = element('button', 'Next step', 'secondary trace-action');
-    next.type = 'button';
-    next.hidden = index === 0;
-    block.querySelector('.step-body').append(next);
-    next.addEventListener('click', () => {
-      nextBlock.hidden = false;
-      next.hidden = true;
-      nextBlock.querySelector('h3').focus({preventScroll:true});
-      nextBlock.scrollIntoView({block:'nearest'});
-    });
-    if (index === 0) {
-      reveal.addEventListener('click', () => {
-        matchedButtons.forEach(([button, word]) => {
-          button.dataset.check = 'found';
-          dictionaryEntries.get(word).classList.add('keyword-found');
-        });
-        result.hidden = false;
-        next.hidden = false;
-        reveal.hidden = true;
-        result.tabIndex = -1;
-        result.focus({preventScroll:true});
-      });
+  const fallback = turn.steps.some(event => event.kind === 'none');
+  const group = keywords.get(fallback ? 'NONE' : match.keyword);
+  const passedKeyword = turn.steps.findLast(event => event.kind === 'newkey')?.from;
+  const inputKeyword = fallback ? null : build.inputKeyword;
+  const ruleIndex = build.ruleIndex;
+  const usedReply = build.selectedReply - 1;
+  const rule = group.transforms[ruleIndex];
+  const names = captureNames(rule);
+  const replies = build.replyOptions.map(option => formatTemplate(option, null, names, ruleTerms(rule)));
+  const captures = [...names].map(([slot, name]) => [name, build.components[Number(slot) - 1] || '']);
+  return {keyword:group.keyword, group, inputKeyword, passedKeyword, words:wordsForGroup(group.keyword), ruleIndex, captures,
+    usedReply, replies, kind:fallback ? 'general' : 'rule'};
+}
+
+function showInList(list, row) {
+  if (row.offsetTop < list.scrollTop || row.offsetTop + row.offsetHeight > list.scrollTop + list.clientHeight) {
+    list.scrollTop = row.offsetTop - 3;
+  }
+}
+
+function deleteButton(label, remove) {
+  const button = element('button', '−', 'delete-row');
+  button.type = 'button';
+  button.setAttribute('aria-label', 'Delete ' + label);
+  button.addEventListener('click', () => { if (!pending) remove(); });
+  return button;
+}
+
+function editableField(value, label, statusId, save, className = '', singleLine = false) {
+  const field = element(singleLine ? 'input' : 'textarea', undefined, 'row-field ' + className);
+  field.value = value;
+  field.autocomplete = 'off';
+  field.spellcheck = false;
+  if (!singleLine) field.rows = 1;
+  field.setAttribute('aria-label', label);
+  field.setAttribute('aria-describedby', 'save-hint ' + statusId);
+  field.addEventListener('input', () => {
+    if (field.getAttribute('aria-invalid') === 'true') {
+      field.removeAttribute('aria-invalid');
+      editorStatus('', false, statusId);
     }
   });
-  return steps;
+  field.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' || event.isComposing) return;
+    event.preventDefault();
+    if (pending || field.value.trim() === value) return;
+    const error = save(field.value);
+    if (error) {
+      field.setAttribute('aria-invalid', 'true');
+      editorStatus(error, true, statusId);
+    }
+  });
+  return field;
+}
+
+function wordRow(keyword, words, index) {
+  const word = words[index];
+  const row = element('li', undefined, 'editor-row word-row');
+  const field = editableField(word ? readable(word) : '', word ? 'Word ' + (index + 1) : 'New word',
+    'words-status', value => {
+      const next = normalize(value);
+      if (!wordSyntax.test(next)) return 'Enter one word in each box. Use + to enter another.';
+      if (!validGroupWords([next], keyword)) return 'Enter a word that is available for this group.';
+      if (words.includes(next) && word !== next) return 'This word is already in the group.';
+      const updated = words.slice();
+      updated[index] = next;
+      updateWords(updated);
+    }, '', true);
+  if (!word) field.placeholder = 'New word';
+  row.append(field, deleteButton(word ? readable(word) : 'new word', () => {
+    if (word) updateWords(words.filter((_, i) => i !== index));
+    else row.remove();
+  }));
+  return row;
+}
+
+function renderBoard(selection, animate = false, focusRule = false) {
+  window.clearTimeout(animationTimer);
+  boardSelection = selection;
+  closeEditors();
+  keywordSelect.querySelector('[data-deleted]')?.remove();
+  if (deletedGroups.has(selection.keyword)) {
+    const previous = element('option', selection.keyword + ' (deleted)');
+    previous.value = selection.keyword;
+    previous.disabled = true;
+    previous.dataset.deleted = '';
+    keywordSelect.append(previous);
+  }
+  keywordSelect.value = selection.keyword;
+  const group = selection.group || ruleGroup(selection.keyword);
+  const editingCurrent = !selection.group || selection.group === ruleGroup(selection.keyword);
+  const general = selection.keyword === 'NONE' || selection.kind === 'general';
+  const canEditGroup = editingCurrent && !!group && !general && !deletedGroups.has(selection.keyword);
+  byId('delete-group').disabled = !canEditGroup;
+  byId('rule-hint').hidden = general || !group?.transforms.length;
+  const note = byId('group-note');
+  const words = selection.words || wordsForGroup(selection.keyword);
+  const sharedGroup = selection.inputKeyword && selection.inputKeyword !== selection.keyword &&
+    ruleGroup(selection.inputKeyword)?.keyword !== selection.keyword
+    ? readable(selection.inputKeyword) + ' leads to the ' + selection.keyword + ' rule group.' : '';
+  const passed = selection.passedKeyword
+    ? readable(selection.passedKeyword) + ' passed to the next keyword in the message.' : '';
+  note.textContent = [sharedGroup, passed].filter(Boolean).join(' ');
+  byId('group-members').hidden = !group || general;
+  [addWordRow, addRuleRow, byId('restore-words'), byId('restore-rules')].forEach(control => {
+    control.hidden = !canEditGroup;
+  });
+  wordList.replaceChildren(...words.map((word, index) => canEditGroup
+    ? wordRow(selection.keyword, words, index) : element('li', readable(word))), addWordRow);
+  ruleList.replaceChildren();
+  replyList.replaceChildren();
+  let selectedRule;
+
+  if (general || selection.kind === 'saved') {
+    selectedRule = element('li', general ? 'No matching keyword rule' : 'Reply saved from an earlier turn', 'route-result');
+    ruleList.append(selectedRule);
+  } else if (group) {
+    group.transforms.forEach((rule, index) => {
+      const row = element('li', undefined, 'editor-row rule-row');
+      const label = 'Rule ' + (index + 1);
+      const button = element('button', undefined, 'rule-button');
+      const arrow = element('span', '→', 'rule-arrow');
+      arrow.setAttribute('aria-hidden', 'true');
+      button.append(label, arrow);
+      button.type = 'button';
+      button.addEventListener('click', () => {
+        renderBoard({keyword:selection.keyword, group:selection.group, ruleIndex:index}, false, true);
+      });
+      const selected = index === selection.ruleIndex;
+      button.setAttribute('aria-pressed', String(selected));
+      if (selected) {
+        row.classList.add('rule-selected');
+        selectedRule = row;
+      }
+      const value = patternParts(rule).join(' ');
+      row.append(button);
+      if (canEditGroup) {
+        const field = editableField(value, 'Pattern for ' + label, 'editor-status',
+          text => savePattern(group.keyword, rule, index, text), 'pattern-input');
+        row.append(field, deleteButton(label, () => {
+          engine.deleteRule(group.keyword, index);
+          const current = selection.ruleIndex;
+          refreshBoard(selection.keyword, current === null ? null :
+            Math.min(current - (index < current ? 1 : 0), group.transforms.length - 2));
+        }));
+      } else {
+        row.append(element('code', value, 'readonly-template'));
+      }
+      ruleList.append(row);
+    });
+  }
+
+  ruleList.append(addRuleRow);
+
+  const captures = byId('captured-content');
+  captures.replaceChildren();
+  captures.hidden = !selection.captures?.length;
+  if (!captures.hidden) {
+    captures.append(element('strong', 'Matched words: '));
+    selection.captures.forEach(([name, words], index) => {
+      if (index) captures.append(' · ');
+      captures.append(element('code', slotTag(name), 'pattern-capture'), ' = ', words ? readable(words) : '(empty)');
+    });
+  }
+
+  const rule = group?.transforms[selection.ruleIndex];
+  showCaptureGuide(general ? null : rule);
+  const {replies, destinations, linkedGroup, triesNextKeyword} = selection.replies
+    ? {replies:selection.replies, destinations:[]}
+    : rule ? browsingOptions(rule) : {replies:[], destinations:[]};
+  const replyGroup = linkedGroup ? ruleGroup(linkedGroup) : group;
+  const replyRule = linkedGroup ? 0 : selection.ruleIndex;
+  const ownedRule = replyGroup?.transforms[replyRule];
+  replyEditor = editingCurrent && ownedRule && !deletedGroups.has(selection.keyword) &&
+    !triesNextKeyword && (!destinations.length || replies.length)
+    ? {keyword:replyGroup.keyword, rule:ownedRule, index:replyRule} : null;
+  addReplyRow.hidden = !replyEditor;
+  byId('restore-replies').hidden = !replyEditor;
+  const slots = byId('reply-slots');
+  slots.replaceChildren();
+  if (replyEditor) {
+    const names = [...captureNames(replyEditor.rule).values()];
+    if (names.length) slots.append('Optional slots ', ...names.map(name => element('code', slotTag(name), 'pattern-capture')));
+  }
+  const context = byId('reply-context');
+  if (general) context.textContent = replies.length + (replies.length === 1 ? ' general reply' : ' general replies');
+  else if (selection.kind === 'saved') context.textContent = 'Saved reply';
+  else if (triesNextKeyword) context.textContent = 'Tries the next keyword in the same message. If no other rule matches, it uses a general reply.';
+  else if (linkedGroup) context.textContent = replies.length + (replies.length === 1 ? ' reply' : ' replies') + ' from the ' + linkedGroup + ' rule group.';
+  else if (rule) context.textContent = replies.length + (replies.length === 1 ? ' reply' : ' replies') + ' for Rule ' + (selection.ruleIndex + 1);
+  else if (group && !group.transforms.length) context.textContent = 'Add a rule to see its replies.';
+  else context.textContent = 'Choose a rule to see its replies.';
+  if (!replies.length && destinations.length) context.textContent = destinations.join(' ');
+
+  replies.forEach((reply, index) => replyList.append(replyRow(replyEditor, reply, index)));
+  replyList.append(addReplyRow);
+  replyList.scrollTop = 0;
+
+  if (selectedRule) {
+    showInList(ruleList, selectedRule);
+    if (focusRule) selectedRule.querySelector('button')?.focus({preventScroll:true});
+  }
+  if (selection.usedReply === undefined) return;
+  if (selectedRule) {
+    selectedRule.classList.add('rule-used');
+    if (animate) selectedRule.classList.add('glow');
+  }
+  const used = selection.usedReply < replies.length && replyList.children[selection.usedReply];
+  if (!used) return;
+  const highlight = () => {
+    used.classList.add('reply-used');
+    if (animate) used.classList.add('glow');
+    used.setAttribute('aria-current', 'true');
+    used.append(element('span', 'Used', 'used-label'));
+    showInList(replyList, used);
+  };
+  if (animate && !reducedMotion.matches) animationTimer = window.setTimeout(highlight, 320);
+  else highlight();
 }
 
 function renderTurn(turn) {
-  const reply = displayReply(turn.output);
-  const trace = createTrace(turn, reply);
-  const number = log.querySelectorAll('.turn').length + 1;
-  const block = element('article', undefined, 'turn');
-  const inputBubble = element('div', undefined, 'message your-message');
-  const replyBubble = element('div', undefined, 'message eliza-message');
-  const explain = element('button', 'Explain', 'text-button explain-reply');
-  explain.type = 'button';
-  explain.setAttribute('aria-label', 'Explain reply ' + number);
-  explain.setAttribute('aria-controls', 'reply-explanation');
-  function selectExplanation() {
-    activeExplanationButton?.removeAttribute('aria-current');
-    activeExplanationButton = explain;
-    explain.setAttribute('aria-current', 'true');
-    byId('explained-reply').textContent = 'Reply ' + number;
-    traceBody.replaceChildren(trace);
-    explanation.hidden = false;
-  }
-  explain.addEventListener('click', () => {
-    selectExplanation();
-    byId('trace-title').focus({preventScroll:true});
-    explanation.scrollIntoView({block:'start'});
+  const reply = sentence(turn.output);
+  const selection = selectionFor(turn, reply);
+  const article = element('article', undefined, 'turn');
+  const question = element('p', turn.input, 'message user');
+  const answer = element('p', reply, 'message eliza');
+  const response = element('div', undefined, 'response');
+  const ruleLabel = selection.kind === 'rule' ? 'Rule ' + (selection.ruleIndex + 1)
+    : selection.kind === 'general' ? 'General reply' : 'Saved reply';
+  const path = [selection.inputKeyword && readable(selection.inputKeyword), ruleLabel,
+    selection.kind !== 'saved' && 'Reply ' + (selection.usedReply + 1)].filter(Boolean).join(' → ');
+  const trace = element('button', path, 'trace-link');
+  trace.type = 'button';
+  trace.title = 'Replay keyword, rule, and reply selection';
+  trace.addEventListener('click', () => {
+    renderBoard(selection, true);
+    byId('rule-board').scrollIntoView({block:'nearest'});
   });
-  inputBubble.append(element('span', 'You', 'speaker'), element('p', turn.input));
-  replyBubble.append(element('span', 'ELIZA', 'speaker'), element('p', reply));
-  const replyRow = element('div', undefined, 'reply-row');
-  replyRow.append(replyBubble, explain);
-  block.append(inputBubble, replyRow);
-  byId('starter')?.remove();
-  log.append(block);
-  selectExplanation();
-  log.scrollTop += block.getBoundingClientRect().top - log.getBoundingClientRect().top - 12;
-}
-
-function chooseTab(tab) {
-  tabs.forEach(candidate => {
-    const selected = candidate === tab;
-    candidate.setAttribute('aria-selected', selected);
-    candidate.tabIndex = selected ? 0 : -1;
-    byId(candidate.getAttribute('aria-controls')).hidden = !selected;
-  });
+  response.append(answer, trace);
+  article.append(question, response);
+  chatLog.append(article);
+  chatLog.scrollTop = chatLog.scrollHeight;
+  renderBoard(selection, true);
 }
 
 async function send(text) {
-  const input = text.trim();
-  if (!input || pending) return;
-  const status = byId('chat-status');
+  const message = text.trim();
+  if (!message || pending) return;
   pending = true;
-  pendingControls.forEach(button => { button.disabled = true; });
-  byId('clear-chat').disabled = true;
+  const status = byId('chat-status');
   status.textContent = '';
+  chatControls.forEach(control => { control.disabled = true; });
+  byId('clear-chat').disabled = true;
   try {
-    const turn = await engine.trace(input);
-    renderTurn(turn);
-    message.value = '';
+    renderTurn(await engine.trace(message));
+    input.value = '';
   } catch (error) {
     console.error(error);
-    status.textContent = 'ELIZA could not answer this message. Try it again.';
-    status.classList.add('error');
+    status.textContent = 'The message could not be processed. Please try it again.';
   } finally {
     pending = false;
-    pendingControls.forEach(button => { button.disabled = false; });
-    byId('clear-chat').disabled = !log.querySelector('.turn');
-    if (!byId('chat-panel').hidden) message.focus({preventScroll:true});
+    chatControls.forEach(control => { control.disabled = false; });
+    byId('clear-chat').disabled = !chatLog.childElementCount;
+    input.focus({preventScroll:true});
   }
 }
 
-function parseTemplate(text, partCount) {
-  if (!/^(?:[A-Za-z '’.,!?-]|\[[1-9]\d*\])+$/.test(text) || !/[a-z]|\[\d+\]/i.test(text)) return null;
-  const tokens = text.toUpperCase().replaceAll('’', "'").match(/\[[1-9]\d*\]|[A-Z'-]+|[,.!?]/g);
-  if (tokens.some(token => token === 'NEWKEY')) return null;
-  if (tokens.some(token => token.startsWith('[') && Number(token.slice(1, -1)) > partCount)) return null;
-  return tokens.map(token => token.startsWith('[') ? token.slice(1, -1) : token);
+const editors = [
+  {button:byId('new-group'), form:byId('new-group-form'), field:byId('new-group-name')},
+  {button:byId('add-rule'), form:byId('add-rule-form'), field:byId('add-rule-pattern')}
+];
+const wordSyntax = /^[A-Z][A-Z0-9]*(?:['-][A-Z0-9]+)*$/;
+const reserved = new Set(['BUT', 'NONE', 'MEMORY', 'NEWKEY']);
+const normalize = text => text.trim().toUpperCase().replaceAll('’', "'");
+
+function loadGroups() {
+  const dictionary = engine.dictionary().filter(entry => !entry.isMemory);
+  keywords = new Map(dictionary.map(entry => [entry.keyword, entry]));
+  if (!groupNames.size) {
+    dictionary.filter(entry => entry.keyword !== 'NONE' && entry.transforms.length)
+      .forEach(entry => groupNames.add(entry.keyword));
+  }
+  const groups = [...groupNames].filter(keyword => !deletedGroups.has(keyword)).sort((a, b) => a.localeCompare(b, 'en'));
+  const placeholder = element('option', 'Choose a keyword group');
+  placeholder.value = '';
+  placeholder.disabled = true;
+  const general = element('option', 'General replies');
+  general.value = 'NONE';
+  keywordSelect.replaceChildren(placeholder, ...groups.map(keyword => element('option', keyword)), general);
 }
 
-tabs.forEach((tab, index) => {
-  tab.addEventListener('click', () => chooseTab(tab));
-  tab.addEventListener('keydown', event => {
-    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-    event.preventDefault();
-    const direction = event.key === 'ArrowLeft' ? -1 : 1;
-    const wrapped = (index + direction + tabs.length) % tabs.length;
-    const next = tabs[event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : wrapped];
-    chooseTab(next);
-    next.focus();
-  });
-});
-
-syncDictionary();
-byId('try-workflow').addEventListener('click', () => {
-  chooseTab(tabs[0]);
-  tabs[0].focus();
-  send(WORKFLOW_SAMPLE);
-});
-
-byId('chat-form').addEventListener('submit', event => {
-  event.preventDefault();
-  send(message.value);
-});
-
-examples.forEach(button => button.addEventListener('click', () => send(button.dataset.example)));
-
-byId('clear-chat').addEventListener('click', () => {
-  engine = makeEngine();
-  userRules.forEach(({pattern,reply}, keyword) => engine.addRule(keyword, pattern, reply));
-  ruleEdits.forEach((group, keyword) => {
-    group.forEach(({pattern,reply}, index) => engine.editRule(keyword, index, pattern, reply));
-  });
-  keywordAliases.forEach((words, keyword) => engine.editAliases(keyword, words));
-  syncDictionary();
-  const starter = element('p', 'Write a message or try an example.', 'starter');
-  starter.id = 'starter';
-  log.replaceChildren(starter);
-  activeExplanationButton = null;
-  traceBody.replaceChildren();
-  explanation.hidden = true;
-  byId('chat-status').textContent = '';
-  byId('clear-chat').disabled = true;
-  message.value = '';
-  message.focus();
-});
-
-const editForm = byId('script-form');
-const addForm = byId('add-rule-form');
-const groupSelect = byId('edit-group');
-const ruleSelect = byId('edit-rule');
-const editCondition = byId('edit-condition');
-const addCondition = byId('add-condition');
-const wordPattern = /^[A-Z][A-Z0-9]*(?:['-][A-Z0-9]+)*$/;
-
-function editorStatus(id, text, error = false) {
-  const status = byId(id);
+function editorStatus(text = '', error = false, statusId = 'editor-status') {
+  const status = byId(statusId);
   status.textContent = text;
   status.classList.toggle('error', error);
 }
 
-function patternTokens(pattern) {
-  return pattern.slice(1, -1).match(/\([^()]*\)|[^\s()]+/g);
+function closeEditors() {
+  editors.forEach(({button,form}) => {
+    form.hidden = true;
+    button.setAttribute('aria-expanded', 'false');
+  });
+  ['group-status', 'words-status', 'editor-status', 'replies-status'].forEach(id => editorStatus('', false, id));
 }
 
-function editorPattern(mode, phrase) {
-  if (mode === 'original') return null;
-  if (mode === 'any') return ['0'];
-  const words = phrase.trim().toUpperCase().replaceAll('’', "'").split(/\s+/);
-  return words.every(word => wordPattern.test(word)) ? ['0', ...words, '0'] : null;
+function groupWordsInput(text) {
+  return [...new Set(normalize(text).split(/[,/]/).map(word => word.trim()).filter(Boolean))];
 }
 
-function replyHint(id, size, mode, example = '') {
-  byId(id).textContent = example || (size === 1
-    ? 'Use [1] to reuse the wording matched by this rule.'
-    : mode === 'contains'
-      ? 'Use [1] for the words before your phrase or [' + size + '] for the words after it.'
-      : 'Use [1] through [' + size + '] to reuse a matched part. Parts are numbered from left to right.');
+function validGroupWords(words, keyword) {
+  return words.length > 0 && words.every(word => wordSyntax.test(word) && !reserved.has(word) &&
+    (!keywords.has(word) || ruleGroup(word)?.keyword === keyword));
 }
 
-function refreshEditCondition() {
-  const original = originalGroups.get(groupSelect.value).transforms[Number(ruleSelect.value)];
-  const mode = editCondition.value;
-  const pattern = editorPattern(mode, byId('edit-phrase').value);
-  byId('edit-phrase-field').hidden = mode !== 'contains';
-  byId('edit-condition-help').textContent = mode === 'original'
-    ? 'The reply below updates this rule’s first option.'
-    : 'A changed pattern uses the reply below.';
-  const notation = element('p', undefined, 'help');
-  notation.append('Original pattern ', element('code', original.decomposition));
-  byId('edit-pattern').replaceChildren(patternLine(pattern || patternTokens(original.decomposition)), notation);
-  const example = mode === 'original' && groupSelect.value === 'I' && ruleSelect.value === '9'
-    ? 'Parts are numbered from left to right. For “I feel happy.”, [4] inserts “happy” into the reply.'
-    : mode === 'original' && groupSelect.value === 'YOU' && ruleSelect.value === '2'
-      ? 'Parts are numbered from left to right. For “You surprised me.”, [3] inserts “surprised” into the reply.'
-      : '';
-  replyHint('template-help', (pattern || patternTokens(original.decomposition)).length, mode, example);
-}
-
-function refreshAddCondition() {
-  const mode = addCondition.value;
-  byId('add-phrase-field').hidden = mode !== 'contains';
-  const pattern = editorPattern(mode, byId('add-phrase').value);
-  replyHint('add-template-help', (pattern || ['0']).length, mode);
-}
-
-function loadSelectedRule() {
-  const keyword = groupSelect.value;
-  const index = Number(ruleSelect.value);
-  const edit = ruleEdits.get(keyword)?.get(index);
-  const active = keywordEntries.get(keyword).transforms[index].reassembly[0];
-  editCondition.value = edit?.mode || 'original';
-  byId('edit-phrase').value = edit?.phrase || '';
-  byId('template').value = /^(?:=|\(|NEWKEY$)/.test(active) ? '' : displayTemplate(active.split(' '));
-  const sample = keyword === 'I' && index === 9 ? STARTER
-    : keyword === 'YOU' && index === 2 ? WORKFLOW_SAMPLE
-    : keyword === 'COMPUTER' ? 'I use a computer for homework.'
-    : userRules.get(keyword)?.test || '';
-  byId('edit-test').value = sample;
-  refreshEditCondition();
-}
-
-function loadSelectedGroup(preferredIndex = 0) {
-  const keyword = groupSelect.value;
-  byId('edit-aliases').value = (keywordAliases.get(keyword) || []).join(', ');
-  ruleSelect.replaceChildren(...keywordEntries.get(keyword).transforms.map((rule, index) => {
-    const description = patternLine(patternTokens(rule.decomposition));
-    const parts = [...description.children].map(part =>
-      part.classList.contains('literal') ? '“' + part.textContent + '”' : part.textContent);
-    const option = element('option', 'Rule ' + (index + 1) + ' · ' + (parts.length ? parts.join(' + ') : description.textContent));
-    option.value = String(index);
-    return option;
-  }));
-  ruleSelect.selectedIndex = preferredIndex;
-  loadSelectedRule();
-}
-
-function loadGroupList(keyword, index = 0) {
-  groupSelect.replaceChildren(...[...originalGroups.keys()].sort().map(name => {
-    const option = element('option', name);
-    option.value = name;
-    return option;
-  }));
-  groupSelect.value = keyword;
-  loadSelectedGroup(index);
-}
-
-function saveAndTry(test, status, confirmation) {
-  editorStatus(status, confirmation);
-  if (test.trim()) {
-    chooseTab(tabs[0]);
-    send(test);
+function parseCondition(text) {
+  if (/^(?:\/[A-Z]+|[1-9]\d*)$/.test(text)) {
+    return [text.startsWith('/') ? '(' + text + ')' : text];
   }
+  if (text.includes('|') || text.includes('/')) {
+    const choices = text.split(/[|/]/).map(word => word.trim());
+    return choices.every(word => wordSyntax.test(word)) ? ['(* ' + choices.join(' ') + ')'] : null;
+  }
+  const phrase = text.split(/\s+/);
+  return phrase.every(word => wordSyntax.test(word)) ? phrase : null;
 }
 
-function availableKeyword(word, allowed = []) {
-  return wordPattern.test(word) && !['BUT','NONE','MEMORY'].includes(word) &&
-    (!keywordEntries.has(word) || allowed.includes(word));
+const slotName = text => text.trim().toLowerCase().replace(/\s+/g, ' ');
+
+function parsePattern(text) {
+  const pattern = normalize(text).replace(/[“”]/g, '"');
+  const cells = pattern.match(/\*|"[^"]+"|\[[^\[\]]+\]|[A-Z][A-Z0-9]*(?:['-][A-Z0-9]+)*|[1-9]\d*/g);
+  if (!cells || cells.join('').replace(/\s+/g, '') !== pattern.replace(/\s+/g, '')) return null;
+  const tokens = [];
+  const captures = new Map();
+  for (const cell of cells) {
+    if (cell === '*') tokens.push('0');
+    else if (cell.startsWith('"')) {
+      const condition = parseCondition(cell.slice(1, -1).trim());
+      if (!condition) return null;
+      tokens.push(...condition);
+    } else if (cell.startsWith('[')) {
+      const inside = cell.slice(1, -1).trim();
+      if (inside.includes('/') && !inside.includes(':')) {
+        const choices = parseCondition(inside);
+        if (!choices) return null;
+        tokens.push(...choices);
+        continue;
+      }
+      const capture = /^([A-Z0-9][A-Z0-9 _'-]*?)(?:\s*:\s*(.+))?$/.exec(inside);
+      if (!capture) return null;
+      const name = slotName(capture[1]);
+      const condition = capture[2] ? parseCondition(capture[2]) : ['0'];
+      if (!condition || condition.length !== 1 || captures.has(name)) return null;
+      captures.set(name, String(tokens.length + 1));
+      tokens.push(condition[0]);
+    } else {
+      tokens.push(cell);
+    }
+  }
+  return {tokens, captures};
 }
 
-document.querySelectorAll('[name="script-mode"]').forEach(control => {
-  control.addEventListener('change', () => {
-    editForm.hidden = control.value !== 'edit';
-    addForm.hidden = control.value !== 'add';
+function parseReply(text, captures = new Map()) {
+  const normalized = normalize(text);
+  const words = normalized.match(/\[[^\[\]]+\]|[A-Z0-9'-]+|[.,!?“”]/g);
+  if (!words || words.join('').replace(/\s+/g, '') !== normalized.replace(/\s+/g, '') ||
+      !words.some(word => /[A-Z]/.test(word) || word.startsWith('['))) return null;
+  const slots = new Set(words.filter(word => word.startsWith('[')).map(word => slotName(word.slice(1, -1))));
+  if (normalized === 'NEWKEY' || words.some(word => /^\d+$/.test(word)) ||
+      [...slots].some(slot => !captures.has(slot))) return null;
+  return words.map(word => word.startsWith('[') ? captures.get(slotName(word.slice(1, -1))) : word);
+}
+
+function labelsFor(pattern) {
+  return Object.fromEntries([...pattern.captures].map(([name, position]) => [position, name]));
+}
+
+function showAvailableSlots(target, names, replyInput) {
+  target.replaceChildren();
+  if (!names.length) {
+    target.textContent = 'Add [slot 1] to the pattern to reuse words in the reply.';
+    return;
+  }
+  target.append('Optional slots ');
+  names.forEach(name => {
+    const tag = slotTag(name);
+    const button = element('button', tag, 'pattern-capture');
+    button.type = 'button';
+    button.setAttribute('aria-label', 'Insert ' + tag);
+    button.addEventListener('click', () => {
+      replyInput.setRangeText(tag, replyInput.selectionStart, replyInput.selectionEnd, 'end');
+      replyInput.focus();
+    });
+    target.append(button);
+  });
+}
+
+function remapReplySlots(rule, pattern) {
+  const names = captureNames(rule);
+  const terms = ruleTerms(rule);
+  const remapped = new Map();
+  const unmatched = [];
+  const newNames = new Map(pattern.captures);
+  for (const slot of new Set([...replySlots(rule), ...names.keys()])) {
+    const name = names.get(slot);
+    if (!name) remapped.set(slot, terms[Number(slot) - 1]);
+    else if (newNames.has(name)) {
+      remapped.set(slot, newNames.get(name));
+      newNames.delete(name);
+    } else unmatched.push(slot);
+  }
+  unmatched.forEach((slot, index) => {
+    const position = [...newNames.values()][index];
+    if (position) remapped.set(slot, position);
+  });
+  return remapped;
+}
+
+function refreshBoard(keyword = boardSelection.keyword, ruleIndex = boardSelection.ruleIndex) {
+  const ruleScroll = ruleList.scrollTop;
+  const replyScroll = replyList.scrollTop;
+  loadGroups();
+  renderBoard({keyword, ruleIndex});
+  ruleList.scrollTop = ruleScroll;
+  replyList.scrollTop = replyScroll;
+}
+
+function updateWords(words) {
+  const {keyword} = boardSelection;
+  engine.setGroupWords(keyword, wordsForGroup(keyword), words);
+  refreshBoard();
+}
+
+function savePattern(keyword, rule, index, text) {
+  const pattern = parsePattern(text);
+  if (!pattern) return 'Use *, exact words, [a/b] choices, or slots such as [slot 1].';
+  const slots = remapReplySlots(rule, pattern);
+  if (replySlots(rule).some(slot => !slots.has(slot))) {
+    return 'A reply still uses a removed slot. Change that reply first.';
+  }
+  // Preserve exact DOCTOR tag matching when the displayed choices were left as they were.
+  const displayedTags = new Map(ruleTerms(rule).filter(term => term.startsWith('(/'))
+    .map(term => [parseCondition(normalize(conditionText(term)))?.[0], term]));
+  const tokens = pattern.tokens.map(token => displayedTags.get(token) || token);
+  engine.setRulePattern(keyword, index, tokens, null, slots, labelsFor(pattern));
+  refreshBoard(keyword, index);
+  ruleList.children[index]?.querySelector('.row-field')?.focus({preventScroll:true});
+}
+
+function replyRow(editor, value, index) {
+  const row = element('li', undefined, 'editor-row reply-row');
+  const label = 'Reply ' + (index + 1);
+  row.append(element('span', label, 'reply-number'));
+  if (!editor) {
+    const template = element('p', undefined, 'readonly-template');
+    value.split(/(\[slot [1-9]\d*\])/g).forEach(part => {
+      template.append(part.startsWith('[slot ') ? element('code', part, 'pattern-capture') : part);
+    });
+    row.append(template);
+    return row;
+  }
+  const {keyword, rule, index:ruleIndex} = editor;
+  const add = value === '';
+  const field = editableField(value, label + ' template', 'replies-status', text => {
+    const names = new Map([...captureNames(rule)].map(([position, name]) => [name, position]));
+    const reply = parseReply(text, names);
+    if (!reply) return 'Enter a reply. Only use slots shown above.';
+    if (add) engine.addReply(keyword, ruleIndex, reply);
+    else engine.editReply(keyword, ruleIndex, index, reply);
+    refreshBoard();
+    replyList.children[index]?.querySelector('.row-field')?.focus({preventScroll:true});
+  });
+  if (add) field.placeholder = 'New reply template';
+  row.append(field, deleteButton(add ? 'new reply' : label, () => {
+    if (add) row.remove();
+    else if (engine.deleteReply(keyword, ruleIndex, index)) refreshBoard();
+    else editorStatus('Keep at least one general reply.', true, 'replies-status');
+  }));
+  return row;
+}
+
+editors.forEach(({button,form,field}) => {
+  button.addEventListener('click', () => {
+    const open = form.hidden;
+    closeEditors();
+    if (!open) return;
+    form.hidden = false;
+    button.setAttribute('aria-expanded', 'true');
+    field.focus();
   });
 });
-groupSelect.addEventListener('change', () => {
-  loadSelectedGroup(groupSelect.value === 'I' ? 9 : groupSelect.value === 'YOU' ? 2 : 0);
-  editorStatus('script-status', '');
-});
-ruleSelect.addEventListener('change', () => {
-  loadSelectedRule();
-  editorStatus('script-status', '');
-});
-editCondition.addEventListener('change', refreshEditCondition);
-byId('edit-phrase').addEventListener('input', refreshEditCondition);
-addCondition.addEventListener('change', refreshAddCondition);
-byId('add-phrase').addEventListener('input', refreshAddCondition);
 
-editForm.addEventListener('submit', event => {
+byId('add-word').addEventListener('click', () => {
+  const {keyword} = boardSelection;
+  const words = wordsForGroup(keyword);
+  const draft = wordList.querySelector('[aria-label="New word"]');
+  if (draft) {
+    draft.focus();
+    return;
+  }
+  const row = wordRow(keyword, words, words.length);
+  addWordRow.before(row);
+  row.querySelector('.row-field').focus();
+});
+byId('restore-words').addEventListener('click', () => {
+  if (!pending) updateWords(wordDefaults.get(boardSelection.keyword));
+});
+byId('restore-rules').addEventListener('click', () => {
+  if (pending) return;
+  engine.restoreRules(boardSelection.keyword);
+  refreshBoard(boardSelection.keyword, 0);
+});
+byId('add-reply').addEventListener('click', () => {
+  if (!replyEditor) return;
+  const draft = replyList.querySelector('[placeholder="New reply template"]');
+  if (draft) {
+    draft.focus();
+    return;
+  }
+  const row = replyRow(replyEditor, '', replyList.children.length - 1);
+  addReplyRow.before(row);
+  row.querySelector('.row-field').focus();
+});
+byId('restore-replies').addEventListener('click', () => {
+  if (pending || !replyEditor) return;
+  if (engine.restoreReplies(replyEditor.keyword, replyEditor.index)) refreshBoard();
+  else editorStatus('The original replies need a slot that was removed. Restore the original rule to recover it.', true, 'replies-status');
+});
+
+function showGroupUndo() {
+  const lastDeleted = [...deletedGroups.keys()].at(-1);
+  byId('group-deleted-message').textContent = lastDeleted ? lastDeleted + ' deleted.' : '';
+  byId('group-undo').hidden = !lastDeleted;
+}
+
+function availableDefaultGroup() {
+  return deletedGroups.has(defaultKeyword) ? keywordSelect.options[1].value : defaultKeyword;
+}
+
+byId('delete-group').addEventListener('click', () => {
+  if (pending) return;
+  const {keyword} = boardSelection;
+  const words = wordsForGroup(keyword);
+  engine.setGroupWords(keyword, words, []);
+  engine.setGroupActive(keyword, false);
+  deletedGroups.set(keyword, words);
+  loadGroups();
+  renderBoard({keyword:availableDefaultGroup(), ruleIndex:0});
+  showGroupUndo();
+  byId('undo-delete-group').focus();
+});
+
+byId('undo-delete-group').addEventListener('click', () => {
+  if (pending) return;
+  const keyword = [...deletedGroups.keys()].at(-1);
+  if (!keyword) return;
+  engine.setGroupWords(keyword, [], deletedGroups.get(keyword));
+  engine.setGroupActive(keyword, true);
+  deletedGroups.delete(keyword);
+  loadGroups();
+  renderBoard({keyword, ruleIndex:0});
+  showGroupUndo();
+  keywordSelect.focus();
+});
+
+document.querySelectorAll('.rule-example').forEach(node => {
+  node.append(byId('pattern-reply-example').content.cloneNode(true));
+});
+for (const prefix of ['new-group', 'add-rule']) {
+  const pattern = byId(prefix + '-pattern');
+  const update = () => showAvailableSlots(byId(prefix + '-slots'),
+    [...(parsePattern(pattern.value)?.captures.keys() || [])], byId(prefix + '-reply'));
+  pattern.addEventListener('input', update);
+  pattern.form.addEventListener('reset', () => queueMicrotask(update));
+  update();
+}
+
+byId('new-group-form').addEventListener('submit', event => {
   event.preventDefault();
   if (pending) return;
-  const keyword = groupSelect.value;
-  const index = Number(ruleSelect.value);
-  const mode = editCondition.value;
-  const phrase = byId('edit-phrase').value.trim();
-  const pattern = editorPattern(mode, phrase);
-  const baseline = originalGroups.get(keyword).transforms[index];
-  const aliases = [...new Set(byId('edit-aliases').value.toUpperCase().replaceAll('’', "'").split(',').map(word => word.trim()).filter(Boolean))];
-  if (!aliases.every(word => availableKeyword(word, keywordAliases.get(keyword) || []))) {
-    editorStatus('script-status', 'Enter unused single words, separated by commas.', true);
+  const keyword = normalize(byId('new-group-name').value);
+  const words = groupWordsInput(byId('new-group-words').value);
+  const pattern = parsePattern(byId('new-group-pattern').value);
+  const reply = pattern && parseReply(byId('new-group-reply').value, pattern.captures);
+  if (!wordSyntax.test(keyword) || reserved.has(keyword) || keywords.has(keyword) ||
+      !validGroupWords(words, keyword) || !reply) {
+    editorStatus('Enter an unused group name and trigger words, a valid pattern, and a reply.', true, 'group-status');
     return;
   }
-  if (mode === 'contains' && !pattern) {
-    editorStatus('script-status', 'Enter the words the rule should match.', true);
-    return;
-  }
-  const size = (pattern || patternTokens(baseline.decomposition)).length;
-  const reply = parseTemplate(byId('template').value.trim(), size);
-  if (!reply) {
-    editorStatus('script-status', 'Use English text and only the reply slots shown above.', true);
-    return;
-  }
-  if (!ruleEdits.has(keyword)) ruleEdits.set(keyword, new Map());
-  ruleEdits.get(keyword).set(index, {mode, phrase, pattern, reply});
-  keywordAliases.set(keyword, aliases);
-  engine.editAliases(keyword, aliases);
-  engine.editRule(keyword, index, pattern, reply);
-  syncDictionary();
-  const test = byId('edit-test').value;
-  loadGroupList(keyword, index);
-  byId('edit-test').value = test;
-  saveAndTry(test, 'script-status', 'Changes saved.');
+  engine.addRule(keyword, pattern.tokens, reply, labelsFor(pattern));
+  engine.setGroupWords(keyword, [keyword], words);
+  groupNames.add(keyword);
+  wordDefaults.set(keyword, words);
+  event.target.reset();
+  loadGroups();
+  renderBoard({keyword, ruleIndex:0});
+  editorStatus('Group added.', false, 'group-status');
+  keywordSelect.focus();
 });
 
-byId('restore-template').addEventListener('click', () => {
-  if (pending) return;
-  const keyword = groupSelect.value;
-  const index = Number(ruleSelect.value);
-  ruleEdits.get(keyword)?.delete(index);
-  engine.editRule(keyword, index, null, null);
-  syncDictionary();
-  loadSelectedGroup(index);
-  editorStatus('script-status', 'This rule and its replies have been restored.');
-});
-
-addForm.addEventListener('submit', event => {
+byId('add-rule-form').addEventListener('submit', event => {
   event.preventDefault();
   if (pending) return;
-  const keyword = byId('add-keyword').value.trim().toUpperCase().replaceAll('’', "'");
-  const pattern = editorPattern(addCondition.value, byId('add-phrase').value);
-  if (!availableKeyword(keyword) || !pattern) {
-    editorStatus('add-status', 'Enter an unused single keyword and complete the rule.', true);
+  const pattern = parsePattern(byId('add-rule-pattern').value);
+  const reply = pattern && parseReply(byId('add-rule-reply').value, pattern.captures);
+  if (!pattern || !reply) {
+    editorStatus('Enter a valid pattern and a reply. Any slots in the reply must appear in the pattern.', true);
     return;
   }
-  const reply = parseTemplate(byId('add-reply').value.trim(), pattern.length);
-  if (!reply) {
-    editorStatus('add-status', 'Use English text and only the reply slots shown above.', true);
-    return;
-  }
-  const test = byId('add-test').value;
-  userRules.set(keyword, {pattern, reply, test});
-  engine.addRule(keyword, pattern, reply);
-  syncDictionary();
-  originalGroups.set(keyword, keywordEntries.get(keyword));
-  loadGroupList(keyword);
-  saveAndTry(test, 'add-status', keyword + ' rule added.');
+  const {keyword} = boardSelection;
+  engine.addRule(keyword, pattern.tokens, reply, labelsFor(pattern));
+  event.target.reset();
+  loadGroups();
+  renderBoard({keyword, ruleIndex:0}, false, true);
+  editorStatus('Rule 1 added.');
 });
 
-loadGroupList('I', 9);
-refreshAddCondition();
+keywordSelect.addEventListener('change', () => renderBoard({
+  keyword:keywordSelect.value,
+  ruleIndex:0
+}));
+byId('chat-form').addEventListener('submit', event => {
+  event.preventDefault();
+  send(input.value);
+});
+examples.forEach(button => button.addEventListener('click', () => send(button.dataset.example)));
+byId('clear-chat').addEventListener('click', () => {
+  engine.clearConversation();
+  chatLog.replaceChildren();
+  byId('chat-status').textContent = '';
+  byId('clear-chat').disabled = true;
+  input.value = '';
+  input.focus({preventScroll:true});
+  const {keyword, ruleIndex} = boardSelection;
+  if (!keyword || deletedGroups.has(keyword)) {
+    renderBoard({keyword:availableDefaultGroup(), ruleIndex:0});
+  } else {
+    renderBoard({keyword, ruleIndex:ruleIndex ?? 0});
+  }
+});
+loadGroups();
+for (const keyword of groupNames) wordDefaults.set(keyword, wordsForGroup(keyword));
+renderBoard({keyword:defaultKeyword, ruleIndex:0});
