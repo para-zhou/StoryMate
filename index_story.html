@@ -1,0 +1,1233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StoryMate</title>
+  <style>
+    :root { color-scheme: light; font-family: "Trebuchet MS", Verdana, sans-serif; color: #55351f; background: #ead5af; font-size: 16px; }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; }
+    button, input, textarea { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: default; opacity: .4; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid #bf7e27; outline-offset: 4px; }
+    .page { max-width: 1180px; padding: 36px 32px 34px; margin: auto; }
+    header { margin-bottom: 22px; }
+    h1 { font: bold clamp(1.65rem, 4vw, 2.3rem) "Courier New", monospace; letter-spacing: .04em; margin: 0; color: #693c22; text-shadow: 2px 2px #fff1cb; }
+    h2 { font-size: 1.125rem; margin: 0; }
+    .view-tabs { display: flex; gap: 12px; border-bottom: 3px solid #a86e3f; margin-bottom: 24px; }
+    .view-tab { border: 2px solid transparent; border-bottom: 0; padding: 9px 19px; background: transparent; color: #805631; }
+    .view-tab[aria-selected="true"] { background: #ffe6ad; border-color: #a86e3f; color: #59351f; box-shadow: inset 0 3px #fff2d0; font-weight: 700; }
+    .card { background: #ffe6ad; border: 3px solid #8a532d; border-radius: 3px; box-shadow: inset 0 0 0 3px #f1c778, 0 4px 0 #b4844f; overflow: hidden; }
+    .chat { max-width: 780px; margin: 0 auto; }
+    .chat-heading { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: space-between; align-items: center; padding: 17px 23px; border-bottom: 2px solid #d4a762; }
+    .chat-actions { display: flex; align-items: center; gap: 12px; }
+    .outline { max-width: 100%; }
+    .outline h3 { margin: 0 0 10px; font-size: 1rem; }
+    .outline ul { padding-left: 20px; margin: 0; }
+    .outline li + li { margin-top: 7px; }
+    .chat-log { height: min(50vh, 440px); min-height: 280px; overflow-y: auto; padding: 24px; scrollbar-color: #b8874e #f7dba4; }
+    .chat-greeting { color: #805735; line-height: 1.7; margin: 0; }
+    .chat-turn { max-width: 87%; margin-bottom: 20px; }
+    .chat-turn.user { margin-left: auto; }
+    .speaker { font-size: .875rem; font-weight: 700; color: #8a5d38; margin: 0 0 7px; }
+    .chat-turn .speaker { margin-bottom: 5px; }
+    .bubble { padding: 12px 15px; border: 1px solid #cfab70; border-radius: 3px; line-height: 1.65; overflow-wrap: anywhere; margin: 0 0 20px; }
+    .bubble.user { background: #f5d38f; }
+    .bubble.eliza { background: #fff3d4; color: #53371f; }
+    .bubble.pending { color: #967449; background: #fbe4b2; font-size: .875rem; }
+    .chat-turn .bubble { margin-bottom: 0; }
+    .message-explain { display: block; margin: 4px 0 0; padding: 4px 0; }
+    .chat-form { border-top: 2px solid #d4a762; padding: 18px 23px 21px; }
+    .chat-compose { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+    label { display: block; font-size: .875rem; color: #765030; margin-bottom: 8px; }
+    input, textarea { width: 100%; background: #fff5dc; border: 2px solid #b48750; border-radius: 2px; padding: 11px 12px; color: #51371f; box-shadow: inset 1px 2px #e7c995; }
+    input::placeholder, textarea::placeholder { color: #98764e; }
+    textarea { resize: vertical; min-height: 75px; line-height: 1.6; }
+    .primary, .secondary { border: 2px solid #84502c; border-radius: 2px; padding: 10px 15px; box-shadow: inset 0 2px #ffffff50, 0 2px #a47442; }
+    .primary { background: #b76b35; color: #fff4d8; font-weight: 700; }
+    .primary:hover { background: #a85b2c; }
+    .secondary { background: #f8d18c; color: #654020; }
+    .secondary:hover { background: #efc273; }
+    form .primary { width: 100%; margin-top: 12px; }
+    .chat-form .primary { width: auto; margin: 0; }
+    .text-button { background: none; border: 0; color: #8b5b2f; font-size: .875rem; padding: 10px 4px; }
+    .text-button:hover { color: #59341a; text-decoration: underline; }
+    .status { font-size: .875rem; color: #86613b; line-height: 1.5; margin: 10px 0 17px; }
+    .status.error { color: #a13d2b; }
+    .status:empty { display: none; }
+    .layout { display: grid; grid-template-columns: minmax(280px, .78fr) minmax(0, 1.6fr); gap: 20px; align-items: stretch; }
+    .left { padding: 23px; }
+    .left h2 { margin-bottom: 20px; }
+    .examples { display: flex; flex-wrap: wrap; gap: 7px; margin: 20px 0 24px; }
+    .example { background: #fff0c8; color: #80522c; border: 1px solid #bc9056; border-radius: 2px; padding: 7px 9px; font-size: .875rem; }
+    .example:hover { background: #f8d596; }
+    .dialogue { border-top: 1px solid #d4ad73; padding-top: 20px; }
+    .machine { display: flex; flex-direction: column; }
+    .machine-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 22px 23px 18px; }
+    .step-count { font-size: .875rem; font-variant-numeric: tabular-nums; color: #93693e; }
+    .steps { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); padding: 0 17px 18px; gap: 5px; }
+    .step { background: #f8d999; border: 1px solid #c49656; border-radius: 2px; color: #916a3b; padding: 9px 2px; font-size: .875rem; }
+    .step[aria-current="step"] { background: #b76b35; color: #fff4d8; border-color: #84502c; font-weight: 700; }
+    .step.visited:not([aria-current="step"]) { background: #e8c381; color: #79512c; }
+    .screen { margin: 0 23px; background: #fff2cf; color: #573c25; border: 2px solid #ceac70; border-radius: 2px; padding: 23px; min-height: 300px; flex: 1; }
+    .screen h3 { font-size: 1.2rem; line-height: 1.5; margin: 0 0 10px; }
+    .explanation { color: #8b6a43; line-height: 1.7; margin: 0 0 19px; font-size: .9375rem; }
+    .code { font-size: 1rem; line-height: 1.9; overflow-wrap: anywhere; white-space: pre-wrap; margin: 0; }
+    .code-label { color: #947044; font-size: .875rem; margin: 14px 0 5px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+    .chip { background: #fff8e4; border: 1px solid #d2b17c; color: #85623b; border-radius: 2px; padding: 5px 10px; line-height: 1.65; }
+    .chip.selected { background: #f3cd80; border-color: #ba8740; color: #6c431d; }
+    .chip.part { background: #eaf0c6; border-color: #adbb75; color: #65713a; }
+    .screen mark { color: #785022; background: #f1d795; border-radius: 2px; padding: 2px 5px; }
+    .detail { border-top: 1px solid #dcc18c; margin-top: 18px; padding-top: 14px; color: #8b6a43; font-size: .875rem; line-height: 1.7; }
+    .nav { display: flex; gap: 9px; padding: 20px 23px 24px; align-items: center; }
+    .nav .text-button { margin-left: auto; }
+    .character-frame { position: relative; max-width: 780px; margin: 68px auto 0; }
+    .rules-frame { position: relative; margin-top: 68px; }
+    .parade-track { --sprite-size: clamp(28px, 8vw, 56px); --party-width: calc(var(--sprite-size) * 6.25 + 36px); position: absolute; top: -62px; left: 10px; right: 10px; width: calc(100% - 20px); height: 66px; padding: 0; border: 0; background: none; z-index: 2; cursor: pointer; }
+    .parade-party { position: absolute; bottom: 0; left: 0; width: var(--party-width); display: flex; align-items: end; gap: 6px; animation: stroll 20s linear infinite; }
+    .walker { display: block; width: var(--sprite-size); height: var(--sprite-size); flex: none; animation: face-direction 20s step-end infinite; }
+    .walker img { display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; transform-origin: 50% 90%; animation: little-steps .6s steps(2, end) infinite; animation-delay: var(--hop-delay, 0s); }
+    .walker:nth-child(2) { --hop-delay: -.15s; }
+    .walker:nth-child(3) { --hop-delay: -.3s; }
+    .walker:nth-child(4) { --hop-delay: -.45s; }
+    .walker:nth-child(5) { --hop-delay: -.2s; }
+    .walker:nth-child(6) { --hop-delay: -.35s; }
+    .walker:nth-child(7) { --hop-delay: -.5s; }
+    .walker.small { width: calc(var(--sprite-size) * .75); height: calc(var(--sprite-size) * .75); }
+    .parade-track.is-paused .parade-party, .parade-track.is-paused .walker, .parade-track.is-paused img { animation-play-state: paused; }
+    @keyframes stroll { 0%, 100% { left: 0; } 47%, 50% { left: calc(100% - var(--party-width)); } 97% { left: 0; } }
+    @keyframes face-direction { 0% { transform: scaleX(1); } 50% { transform: scaleX(-1); } 100% { transform: scaleX(1); } }
+    @keyframes little-steps { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-3px) rotate(2deg); } }
+    @media (prefers-reduced-motion: reduce) { .parade-party, .walker, .walker img { animation: none; } }
+    .editor { padding: 24px; }
+    .editor-heading, .editor-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .editor-heading { justify-content: space-between; }
+    .editor-note { color: #87623c; font-size: .875rem; line-height: 1.7; margin: 15px 0 20px; }
+    .word-groups { color: #87623c; font-size: .875rem; line-height: 1.7; margin: -8px 0 18px; }
+    .word-groups summary { cursor: pointer; }
+    .word-groups p { margin: 8px 0 0; }
+    #keyword-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+    .keyword-group { min-width: 0; margin: 0; border: 2px solid #c59b5e; border-radius: 2px; padding: 14px; background: #fff0c9; }
+    .keyword-fields { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: start; background: #f3ce86; border: 1px solid #d7ae64; padding: 12px; }
+    .keyword-fields label { color: #80501f; font-weight: 700; }
+    .keyword-fields .text-button { padding: 0; font-size: .8125rem; }
+    .pattern-fields { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.3fr); gap: 10px; margin-top: 12px; align-items: start; }
+    .condition-column { background: #fff7df; border: 1px solid #dbc38e; padding: 12px; }
+    .reply-column { background: #e7edc4; border: 1px solid #bdc68c; padding: 12px; }
+    .condition-column label { color: #8a682d; font-weight: 700; }
+    .reply-column label { color: #657239; font-weight: 700; }
+    .editor input, .editor textarea { font-size: .9375rem; padding: 9px 10px; background: #fffaea; }
+    .pattern-fields .text-button { grid-column: 1 / -1; margin: 0; padding: 0; justify-self: end; font-size: .8125rem; }
+    .rule-footer { display: flex; align-items: start; justify-content: space-between; gap: 10px; margin-top: 10px; }
+    .rule-footer > .text-button { padding: 4px 0; }
+    .priority-options { color: #997448; font-size: .875rem; }
+    .priority-options summary { padding: 4px 0; cursor: pointer; }
+    .priority-options input { width: 90px; margin-top: 5px; }
+    .editor .status { margin-bottom: 0; }
+    .fallback-editor { max-width: 680px; padding: 15px; background: #f7dca5; border: 1px solid #c9a36a; margin: 20px 0; }
+    .fallback-editor textarea { min-height: 75px; }
+    .editor-actions .text-button { margin-left: auto; }
+    .walkthrough { margin-top: 25px; }
+    .walkthrough > summary { cursor: pointer; font-weight: 700; padding: 20px 23px; }
+    .walkthrough .layout { padding: 0 20px 20px; }
+    @media (max-width: 1000px) { #keyword-groups { grid-template-columns: 1fr; } }
+    @media (max-width: 850px) { .page { padding: 25px 18px; } .layout { grid-template-columns: 1fr; } .left { padding: 22px; } .examples { margin-bottom: 18px; } .screen { min-height: 280px; } }
+    @media (max-width: 650px) { .pattern-fields { grid-template-columns: 1fr; } .editor { padding: 18px; } .walkthrough .layout { padding: 0 12px 12px; } }
+    @media (max-width: 420px) { .parade-track { --sprite-size: clamp(28px, 8vw, 36px); top: -42px; height: 46px; } .character-frame, .rules-frame { margin-top: 48px; } .steps { padding: 0 12px 18px; gap: 3px; } .step { font-size: .8125rem; } .screen { margin: 0 14px; padding: 19px; } .machine-heading { padding-left: 20px; padding-right: 20px; } .nav { padding: 18px 14px; gap: 7px; flex-wrap: wrap; } }
+    select { width: 100%; font: inherit; appearance: none; border: 2px solid #b48750; border-radius: 2px; padding: 10px 36px 10px 12px; background: #fff5dc; color: #51371f; box-shadow: inset 1px 2px #e7c995; }
+    select:focus-visible { outline: 3px solid #bf7e27; outline-offset: 4px; }
+    .select-wrap { position: relative; }
+    .select-wrap:after { content: ""; position: absolute; right: 14px; top: calc(50% - 5px); width: 8px; height: 8px; border-right: 2px solid #84502c; border-bottom: 2px solid #84502c; transform: rotate(45deg); pointer-events: none; }
+    .studio-grid { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); gap: 23px; align-items: start; }
+    .script-card, .trace-card { padding: 23px; }
+    .script-card > h2, .trace-card > h2 { margin-bottom: 20px; }
+    .script-card > label { margin-bottom: 7px; }
+    #script-body { margin-top: 19px; max-height: 620px; overflow-y: auto; scrollbar-color: #b8874e #f7dba4; padding-right: 4px; }
+    .script-keywords { padding: 12px 14px; background: #f3ce86; border: 1px solid #cba268; }
+    .script-keywords p { margin: 0; line-height: 1.65; }
+    .script-keywords .small-label { margin-bottom: 5px; }
+    .small-label { font-size: .875rem; font-weight: 700; color: #80522d; margin: 0 0 8px; }
+    .outer-if { margin: 17px 0 14px; font-size: .9375rem; line-height: 1.7; }
+    .syntax { color: #975027; font-weight: 700; white-space: nowrap; }
+    .script-rules { border-left: 3px solid #cea668; padding-left: 13px; }
+    .script-rule { border: 1px solid #d5b47b; background: #fff1cd; padding: 13px; margin-bottom: 13px; }
+    .active-rule { border: 2px solid #9ca95a; padding: 12px; background: #fff7dc; }
+    .script-rule-heading, .trace-rule-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+    .script-rule h3, .trace-heading { margin: 0; font-size: 1rem; }
+    .script-rule-heading .text-button, .trace-rule-heading .text-button { padding: 0; }
+    .script-line { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 10px; margin: 8px 0; line-height: 1.75; font-size: .9375rem; overflow-wrap: anywhere; }
+    .named-slot { display: inline; padding: 2px 4px; background: #dde8b0; color: #56612f; border-bottom: 2px solid #8b9d4d; box-decoration-break: clone; }
+    .script-actions { display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-top: 18px; }
+    .empty-script { color: #8b6b43; line-height: 1.7; }
+    .trace-card { overflow: visible; position: sticky; top: 20px; }
+    .trace-form { margin-bottom: 18px; }
+    .trace-compose { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+    .trace-form .primary { width: auto; margin: 0; padding-left: 10px; padding-right: 10px; }
+    .trace-compose input { min-width: 0; }
+    .trace-source { position: sticky; top: 8px; z-index: 1; padding: 14px; background: #fff4d6; border: 2px solid #c4a16b; box-shadow: 0 3px #ead19e; }
+    .annotated-message { font-size: 1.18rem; line-height: 1.85; margin: 6px 0 0; overflow-wrap: anywhere; }
+    .keyword-match { font-size: 1rem; line-height: 1.65; margin: 10px 0 0; overflow-wrap: anywhere; }
+    .found-keyword { text-decoration: underline; text-decoration-color: #af712d; text-decoration-thickness: 3px; text-underline-offset: 4px; font-weight: 700; }
+    .found-phrase { background: #f3d695; }
+    .reused-text { background: #dde8b0; color: #4e5a2e; border-bottom: 2px solid #8b9d4d; padding: 2px 0; box-decoration-break: clone; }
+    .source-key { margin: 10px 0 0; font-size: .8125rem; color: #8c7149; line-height: 1.6; }
+    .matched-rule { padding: 16px 0; border-bottom: 1px solid #cfa96f; }
+    .rule-reason { font-size: 1rem; line-height: 1.7; margin: 8px 0 0; }
+    .capture-binding { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; line-height: 1.75; margin: 8px 0 0; font-size: 1rem; overflow-wrap: anywhere; }
+    .match-fragment { padding: 2px 4px; background: #f3d695; }
+    .trace-result { padding: 18px 0 3px; }
+    .trace-result .trace-heading { margin-bottom: 8px; }
+    .reply-template { font-size: .9375rem; line-height: 1.7; margin: 0 0 9px; overflow-wrap: anywhere; }
+    .reply-template .syntax { margin-right: .5em; }
+    .built-reply { font-size: 1.13rem; line-height: 1.85; margin: 0; overflow-wrap: anywhere; }
+    .trace-more { margin-top: 17px; font-size: .875rem; color: #8c7149; line-height: 1.7; }
+    .trace-more summary { cursor: pointer; }
+    .trace-more p { margin: 10px 0 0; }
+    .rule-dialog { width: min(620px, calc(100% - 32px)); max-height: calc(100vh - 40px); overflow-y: auto; padding: 24px; border: 3px solid #84502c; border-radius: 3px; background: #ffe6ad; color: #55351f; box-shadow: inset 0 0 0 3px #f1c778, 0 4px 0 #a57442; }
+    .rule-dialog::backdrop { background: #38221488; }
+    .rule-dialog h2 { margin-bottom: 18px; }
+    .editor-if, .editor-match, .editor-then { border: 1px solid #cba46b; padding: 14px; margin-bottom: 13px; }
+    .editor-if { background: #f3ce86; }
+    .editor-match { background: #fff5d9; }
+    .editor-then { background: #e7edc4; }
+    .editor-if > label, .editor-match > label, .editor-then > label { font-weight: 700; }
+    .field-help { margin: 7px 0 0; font-size: .8125rem; line-height: 1.65; color: #8b7147; }
+    .extra-field { margin-top: 13px; }
+    .reply-tools { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+    .reply-tools .text-button { padding: 8px 0 0; }
+    .editor-more { font-size: .875rem; color: #8c7149; margin: 15px 0; }
+    .editor-more summary { cursor: pointer; }
+    .editor-more label { margin-top: 12px; }
+    .dialog-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 17px; }
+    .dialog-actions .primary { width: auto; margin: 0; }
+    .dialog-actions .text-button { margin-left: auto; }
+    @media (max-width: 900px) { .studio-grid { grid-template-columns: 1fr; } .trace-card { position: static; } #script-body { max-height: 500px; } }
+    @media (max-width: 500px) { .script-card, .trace-card { padding: 18px; } .script-line { grid-template-columns: 72px minmax(0, 1fr); gap: 8px; } .rule-dialog { padding: 19px; } .script-rules { padding-left: 9px; } }
+
+    .script-order { font-size: .8125rem; color: #94734a; margin: -8px 0 14px; }
+    .reply-or { color: #94734a; font-size: .8125rem; }
+    .recorded-note { font-size: .8125rem; color: #96764b; padding: 9px 10px; background: #f7daa3; line-height: 1.6; }
+    .character-words-form { margin-top: 13px; }
+    .character-words-form label { margin-bottom: 6px; }
+    .word-compose { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+    .word-compose input { min-width: 0; }
+    .word-compose .secondary { padding-left: 10px; padding-right: 10px; font-size: .875rem; }
+    .memory-note { margin: 10px 0 0; color: #657138; font-size: .875rem; line-height: 1.6; }
+    .memory-source { color: #8c7149; margin-top: 7px; font-size: .8125rem; line-height: 1.6; }
+    .memory-source summary { cursor: pointer; }
+    .memory-source p { margin: 6px 0 0; }
+    .context-word { border-bottom: 2px dotted #718744; }
+    .site-credit { margin: 24px 0 0; color: #78522f; font-size: .875rem; line-height: 1.5; text-align: center; }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div>
+        <h1>StoryMate</h1>
+      </div>
+    </header>
+
+    <nav class="view-tabs" role="tablist" aria-label="StoryMate views">
+      <button class="view-tab" id="chat-tab" role="tab" aria-selected="true" aria-controls="chat-panel" tabindex="0" type="button">Chat</button>
+      <button class="view-tab" id="explain-tab" role="tab" aria-selected="false" aria-controls="explain-panel" tabindex="-1" type="button">Script</button>
+    </nav>
+
+    <section id="chat-panel" role="tabpanel" aria-labelledby="chat-tab">
+    <div class="character-frame">
+      <button class="parade-track" type="button" aria-label="Pause characters" aria-pressed="false" title="Pause characters">
+        <span class="parade-party" aria-hidden="true">
+          <span class="walker"><img src="assets/pixel-characters/dragon.png" alt="" width="56" height="56" draggable="false"></span>
+          <span class="walker small"><img src="assets/pixel-characters/dumpling.png" alt="" width="42" height="42" draggable="false"></span>
+          <span class="walker"><img src="assets/pixel-characters/angel.png" alt="" width="56" height="56" draggable="false"></span>
+          <span class="walker small"><img src="assets/pixel-characters/strawberry.png" alt="" width="42" height="42" draggable="false"></span>
+          <span class="walker"><img src="assets/pixel-characters/hero.png" alt="" width="56" height="56" draggable="false"></span>
+          <span class="walker"><img src="assets/pixel-characters/elf.png" alt="" width="56" height="56" draggable="false"></span>
+          <span class="walker small"><img src="assets/pixel-characters/cat.png" alt="" width="42" height="42" draggable="false"></span>
+        </span>
+      </button>
+      <div class="card chat">
+        <div class="chat-heading">
+          <h2>Conversation</h2>
+          <div class="chat-actions">
+            <button class="text-button" id="show-outline" type="button" disabled>Story outline</button>
+            <button class="text-button" id="clear-chat" type="button">Clear chat</button>
+          </div>
+        </div>
+        <div class="chat-log" id="chat-log" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions">
+          <p class="chat-greeting">Tell me a little about your story.</p>
+        </div>
+        <form class="chat-form" id="chat-form">
+          <label for="chat-sentence">Message</label>
+          <div class="chat-compose">
+            <input id="chat-sentence" placeholder="My character is ..." maxlength="240" autocomplete="off" spellcheck="false" aria-describedby="chat-status">
+            <button class="primary" type="submit">Send</button>
+          </div>
+          <p class="status" id="chat-status" role="status"></p>
+        </form>
+      </div>
+    </div>
+    </section>
+
+    <section id="explain-panel" role="tabpanel" aria-labelledby="explain-tab" hidden>
+      <div class="rules-frame">
+        <button class="parade-track" type="button" aria-label="Pause characters" aria-pressed="false" title="Pause characters">
+        <span class="parade-party" aria-hidden="true">
+          <span class="walker"><img src="assets/pixel-characters/dragon.png" alt="" width="56" height="56" draggable="false"></span>
+          <span class="walker small"><img src="assets/pixel-characters/dumpling.png" alt="" width="42" height="42" draggable="false"></span>
+          <span class="walker"><img src="assets/pixel-characters/angel.png" alt="" width="56" height="56" draggable="false"></span>
+          <span class="walker small"><img src="assets/pixel-characters/strawberry.png" alt="" width="42" height="42" draggable="false"></span>
+          <span class="walker"><img src="assets/pixel-characters/hero.png" alt="" width="56" height="56" draggable="false"></span>
+          <span class="walker"><img src="assets/pixel-characters/elf.png" alt="" width="56" height="56" draggable="false"></span>
+          <span class="walker small"><img src="assets/pixel-characters/cat.png" alt="" width="42" height="42" draggable="false"></span>
+        </span>
+      </button>
+        <div class="studio-grid">
+          <section class="card script-card" aria-labelledby="script-title">
+            <h2 id="script-title">Story script</h2>
+            <label for="topic-select">Keyword group</label>
+            <div class="select-wrap"><select id="topic-select"></select></div>
+            <div id="script-body"></div>
+            <details class="trace-more">
+              <summary>What is [next question]?</summary>
+              <p>StoryMate fills this slot with a follow-up based on the story so far. Select Explain beside a chat reply to see which question it chose.</p>
+            </details>
+            <div class="script-actions">
+              <button id="add-rule" type="button" class="secondary">Add a rule</button>
+              <button id="restore-defaults" type="button" class="text-button">Restore defaults</button>
+            </div>
+            <p id="rules-status" class="status" role="status"></p>
+          </section>
+          <section class="card trace-card" id="explanation" aria-labelledby="trace-title" tabindex="-1">
+            <h2 id="trace-title">Explain a reply</h2>
+            <form id="trace-form" class="trace-form">
+              <label for="trace-input">Sentence to explain</label>
+              <div class="trace-compose">
+                <input id="trace-input" value="My character is a dragon." maxlength="240" autocomplete="off" spellcheck="false" aria-describedby="trace-status">
+                <button class="primary" type="submit">Explain</button>
+              </div>
+              <p id="trace-status" class="status error" role="status"></p>
+            </form>
+            <div id="trace-body" aria-live="polite"></div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <dialog id="rule-dialog" class="rule-dialog" aria-labelledby="editor-title">
+      <form id="rule-editor" novalidate>
+        <h2 id="editor-title">Edit a rule</h2>
+        <div class="editor-if">
+          <label for="edit-keywords">if keyword exists</label>
+          <textarea id="edit-keywords" rows="2" placeholder="dragon, hero" spellcheck="false"></textarea>
+          <p id="keyword-help" class="field-help"></p>
+        </div>
+        <div class="editor-match">
+          <label for="edit-match">if match</label>
+          <div class="select-wrap"><select id="edit-match"></select></div>
+          <div id="phrase-field" class="extra-field">
+            <label for="edit-phrase">Phrase to find</label>
+            <input id="edit-phrase" placeholder="character is" spellcheck="false">
+          </div>
+          <div id="capture-field" class="extra-field">
+            <label for="edit-capture">Name this text part</label>
+            <input id="edit-capture" value="character" placeholder="character" spellcheck="false">
+          </div>
+          <p id="match-help" class="field-help"></p>
+        </div>
+        <div class="editor-then">
+          <label for="edit-replies">then reply</label>
+          <textarea id="edit-replies" rows="3" placeholder="What is special about [character]?" spellcheck="false"></textarea>
+          <div class="reply-tools"><button id="insert-part" type="button" class="text-button">Insert [character]</button><span class="field-help">One reply per line. StoryMate picks one at random.</span></div>
+        </div>
+        <details id="editor-more" class="editor-more">
+          <summary>More options</summary>
+          <label for="edit-name">Group name</label><input id="edit-name">
+          <label for="edit-priority">Group priority</label><input id="edit-priority" type="number" min="0" max="1000" step="1">
+          <p class="field-help">Higher priority groups are checked first when several groups match.</p>
+        </details>
+        <p id="editor-status" class="status error" role="status"></p>
+        <div class="dialog-actions">
+          <button type="submit" class="primary">Save rule</button>
+          <button id="cancel-editor" type="button" class="secondary">Cancel</button>
+          <button id="delete-rule" type="button" class="text-button">Delete this rule</button>
+        </div>
+      </form>
+    </dialog>
+    <footer class="site-credit">Credit · CUHK-JC AI for the Future</footer>
+  </main>
+  <script>
+'use strict';
+
+const STORAGE_KEY = 'jc-storymate-script-v2';
+const LEGACY_KEY = 'eliza-story-rules-v1';
+const CHARACTER_WORDS = ['dragon', 'angel', 'hero', 'elf', 'robot', 'knight'];
+const PLACE_WORDS = ['forest', 'castle', 'school', 'planet', 'mountain', 'village', 'island'];
+const VOCABULARY_VERSION = 1;
+const EXTRA_KEYWORDS = {
+  1: ['characters', 'protagonist', 'unicorn', 'fairy', 'wizard', 'witch', 'pirate', 'mermaid', 'giant', 'ghost', 'detective', 'alien', 'fox', 'owl', 'rabbit', 'cat', 'wolf', 'bear'],
+  2: ['bakery', 'cave', 'library', 'garden', 'beach', 'ocean', 'desert', 'city', 'town', 'kingdom', 'tower', 'lake', 'farm', 'market', 'spaceship'],
+  3: ['wish', 'wishes', 'hope', 'hopes', 'hoping', 'aim', 'aims', 'goal', 'quest', 'mission'],
+  4: ['obstacle', 'stuck', 'trapped', 'blocked', 'locked', 'danger', 'storm', 'collapsed'],
+  5: ['secrets', 'mystery', 'mysterious', 'clue', 'clues', 'twist', 'unexpected', 'hidden', 'revealed', 'disguise'],
+  6: ['endings', 'ends', 'conclusion', 'epilogue', 'afterward', 'afterwards', 'resolution']
+};
+const OPENING = 'What’s the first thing you picture in your story?';
+const STORY_PARTS = [
+  {number:1, label:'Character', question:'Who do we follow in this story?'},
+  {number:2, label:'Setting', question:'Where does this happen?'},
+  {number:3, label:'Goal', question:'What is your character hoping for?'},
+  {number:4, label:'Obstacle', question:'What could get in their way?'},
+  {number:5, label:'Twist'},
+  {number:6, label:'Ending', question:'What does your character do next?'}
+];
+const GUIDE_SLOT = 'next_question';
+const DETAIL_SLOT = 'story_detail';
+const MATCH_TYPES = [
+  ['keyword', 'A keyword appears'],
+  ['phrase', 'The message contains a phrase'],
+  ['after', 'Take the text after a phrase'],
+  ['character', 'A character is mentioned'],
+  ['place', 'A place is mentioned'],
+  ['exact', 'The whole message matches a phrase']
+];
+const copy = value => JSON.parse(JSON.stringify(value));
+const $ = id => document.getElementById(id);
+const esc = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+const ruleId = (topic, rule) => 'Rule ' + topic.number + '.' + rule.number;
+const slotName = rule => rule.type === 'character' ? 'character' : rule.type === 'place' ? 'place' : rule.type === 'after' ? rule.capture : 'keyword';
+const defaultRule = (number, type, replies, phrase = '', capture = 'detail') => ({number, type, phrase, capture, replies});
+const DEFAULT_REPLY_PARTS = new Map([
+  ['1:1',2], ['1:2',2], ['1:3',1], ['2:1',3], ['2:2',3],
+  ['3:1',4], ['4:1',6], ['5:1',6], ['5:2',6], ['6:1',null]
+]);
+const DEFAULT_CONFIG = {
+  guidanceVersion: 4,
+  vocabularyVersion: VOCABULARY_VERSION,
+  nextTopic: 7,
+  topics: [
+    {number:1, name:'Characters', keywords:['character', ...CHARACTER_WORDS, ...EXTRA_KEYWORDS[1]], priority:10, nextRule:4, rules:[
+      defaultRule(1, 'after', [
+        'I’m picturing [character] already. Where do we first meet them?',
+        'So we’ll follow [character]. What sort of place do they call home?',
+        'That gives us someone to follow. Where does the story begin for [character]?'
+      ], 'character is', 'character'),
+      defaultRule(2, 'character', [
+        'We have someone to follow. Where do we first meet them?',
+        'I can picture someone at the centre of this story now. Where does your character feel at home?',
+        'I’m curious where your character might turn up. What kind of place would surprise them?'
+      ]),
+      defaultRule(3, 'keyword', [
+        'Let’s spend a moment with the character. Who do you picture?',
+        'I’m listening. What’s the first thing we’d notice about your character?'
+      ])
+    ]},
+    {number:2, name:'Places', keywords:[...PLACE_WORDS, 'setting', ...EXTRA_KEYWORDS[2]], priority:20, nextRule:3, rules:[
+      defaultRule(1, 'place', [
+        'The [place] gives us an opening scene. What brings your character there?',
+        'I can picture a scene in the [place]. What is your character looking for?',
+        'So we’re in the [place]. What does your character hope will happen there?'
+      ]),
+      defaultRule(2, 'keyword', [
+        'We have somewhere for the story to unfold. What draws your character there?',
+        'I’m starting to picture the scene. What is your character hoping to do there?'
+      ])
+    ]},
+    {number:3, name:'Goals', keywords:['want', 'wants', 'need', 'needs', ...EXTRA_KEYWORDS[3]], priority:30, nextRule:2, rules:[
+      defaultRule(1, 'keyword', [
+        'That gives your character a reason to act. What could get in their way?',
+        'Now there’s something at stake for your character. Who or what might stand in their way?',
+        'They have something to aim for. What might make it harder than they expect?'
+      ])
+    ]},
+    {number:4, name:'Obstacles', keywords:['but', 'cannot', "can't", 'problem', ...EXTRA_KEYWORDS[4]], priority:40, nextRule:2, rules:[
+      defaultRule(1, 'keyword', [
+        'Things just got harder for your character. How do they respond?',
+        'That puts them in a difficult spot. What choice do they make?',
+        'That could be the moment the story turns. What happens when your character faces it?'
+      ])
+    ]},
+    {number:5, name:'Secrets', keywords:['secret', 'suddenly', 'strange', ...EXTRA_KEYWORDS[5]], priority:50, nextRule:3, rules:[
+      defaultRule(1, 'phrase', [
+        'That secret could change everything. Where does it lead by the end?',
+        'Now someone has something to hide. How does the story end once someone finds out?',
+        'The secret gives us a possible turning point. How might it change the ending?'
+      ], 'secret'),
+      defaultRule(2, 'keyword', [
+        'That takes the story in a new direction. What happens right after the surprise?',
+        'I didn’t see that coming. How does your character react?'
+      ])
+    ]},
+    {number:6, name:'Endings', keywords:['ending', 'end', 'finally', ...EXTRA_KEYWORDS[6]], priority:60, nextRule:2, rules:[
+      defaultRule(1, 'keyword', [
+        'That gives the story a closing scene. What feeling do you want to leave the reader with?',
+        'We have an ending to work with. What would stay with the reader afterward?',
+        'I can picture the last scene. What might you call this story?'
+      ])
+    ]}
+  ],
+  fallback:['I’m following. [next_question]','I can picture that. [next_question]','Let’s keep going. [next_question]']
+};
+let config = copy(DEFAULT_CONFIG);
+let selectedTopic = 1;
+let trace = null;
+let editState = null;
+const lastReplies = new Map();
+const chatTurns = [];
+const storyMemory = {character:null, characterless:false};
+const storyNotes = [];
+const skippedParts = new Set();
+let askedPart = null;
+let completionShown = false;
+
+function characterWords(topic=config.topics.find(item=>item.number===1)) {
+  return topic ? topic.keywords.filter(word=>!['character','characters','protagonist'].includes(word)) : CHARACTER_WORDS;
+}
+function placeWords() {
+  const topic=config.topics.find(item=>item.number===2);
+  return topic ? topic.keywords.filter(word=>word!=='setting') : PLACE_WORDS;
+}
+function characterChoice(input) {
+  if (input.endsWith('?')) return null;
+  const clause=input.toLowerCase().replace(/’/g,"'").replace(/^actually,\s*/,'').split(/[,;.!]/,1)[0].trim();
+  const absence=clause.match(/^(?:(?:there is|there are|there's|(?:my |the |this )?story has|it has) )?no (?:main )?characters?(?: in (?:my|the|this) story)?(?: (yet|so far|right now))?$/)
+    || clause.match(/^there (?:isn't|aren't) (?:a |any )?(?:main )?characters?(?: (yet|so far|right now))?$/);
+  if (absence) return absence[1] ? 'open' : 'absent';
+  if (/^(?:my |the )?(?:main )?character (?:is not|isn't)\b/.test(clause)) return 'negated-description';
+  return null;
+}
+function namedCharacter(tokens,input) {
+  const phrase=phraseAt(tokens,'character is');
+  if (phrase && phrase.last<tokens.length-1) {
+    const start=tokens[phrase.last+1].start,end=tokens[tokens.length-1].end;
+    return {text:input.slice(start,end),source:input};
+  }
+  const words=characterWords(), index=tokens.findIndex(token=>words.includes(token.word));
+  if (index<0) return null;
+  const first=index>0 && ['a','an','the'].includes(tokens[index-1].word) ? index-1 : index;
+  const hasDescription=first===0 && ['who','that'].includes(tokens[index+1]?.word);
+  const last=hasDescription ? tokens.length-1 : index;
+  return {text:input.slice(tokens[first].start,tokens[last].end),source:input};
+}
+
+function tokenize(input) {
+  return [...input.matchAll(/[a-z]+(?:['’][a-z]+)?|[0-9]+/gi)].map(match => ({
+    text:match[0], word:match[0].toLowerCase().replace(/’/g, "'"), start:match.index, end:match.index+match[0].length
+  }));
+}
+function describe(rule) {
+  if (rule.type === 'after') return 'Take the text after "' + rule.phrase + '" as [' + rule.capture + '].';
+  if (rule.type === 'phrase') return 'The message contains "' + rule.phrase + '".';
+  if (rule.type === 'exact') return 'The whole message is "' + rule.phrase + '".';
+  if (rule.type === 'character') return 'A character is named, or it, he, she, or they refers to the most recent character.';
+  if (rule.type === 'place') return 'A place word from this group appears. Reuse it as [place].';
+  return 'Any keyword from this group appears.';
+}
+function phraseAt(tokens, phrase) {
+  const words = tokenize(phrase).map(token => token.word);
+  if (!words.length) return null;
+  for (let i=0; i<=tokens.length-words.length; i++) {
+    if (words.every((word,j) => tokens[i+j].word === word)) return {first:i, last:i+words.length-1};
+  }
+  return null;
+}
+function matchRule(rule, tokens, input, hits, reference=null) {
+  const captures = {
+    message:{text:input,start:0,end:input.length},
+    keyword:{text:hits[0].text,start:hits[0].start,end:hits[0].end}
+  };
+  let anchor = null, primary = null;
+  if (rule.type === 'phrase' || rule.type === 'after' || rule.type === 'exact') {
+    const found = phraseAt(tokens, rule.phrase);
+    if (!found) return null;
+    if (rule.type === 'exact' && (found.first !== 0 || found.last !== tokens.length-1)) return null;
+    anchor = {start:tokens[found.first].start,end:tokens[found.last].end};
+    if (rule.type === 'after') {
+      if (found.last === tokens.length-1) return null;
+      const start=tokens[found.last+1].start, end=tokens[tokens.length-1].end;
+      captures[rule.capture] = {text:input.slice(start,end),start,end};
+      const prefixEnd=found.first ? tokens[found.first-1].end : 0;
+      captures.before = {text:input.slice(0,prefixEnd),start:0,end:prefixEnd};
+      primary=rule.capture;
+    }
+  } else if (rule.type === 'character' || rule.type === 'place') {
+    const words=rule.type === 'character' ? characterWords() : placeWords();
+    const token=tokens.find(item => words.includes(item.word));
+    if (!token && !(rule.type==='character' && reference)) return null;
+    primary=rule.type;
+    captures[primary]=token ? {text:token.text,start:token.start,end:token.end}
+      : {text:reference.character.text,start:reference.token.start,end:reference.token.end,fromMemory:true,source:reference.character.source};
+    anchor=token ? {start:token.start,end:token.end} : {start:reference.token.start,end:reference.token.end};
+  }
+  return {captures, anchor, primary};
+}
+function fillTemplate(template, captures) {
+  const parts=[];
+  const re=/\[([a-z][a-z0-9_]*)\]/gi;
+  let offset=0;
+  for (const match of template.matchAll(re)) {
+    if (match.index > offset) parts.push({text:template.slice(offset,match.index)});
+    const name=match[1].toLowerCase();
+    const capture=captures[name];
+    if (capture?.parts) parts.push(...capture.parts);
+    else parts.push({text:capture ? capture.text : '',name});
+    offset=match.index+match[0].length;
+  }
+  if (offset < template.length) parts.push({text:template.slice(offset)});
+  return parts;
+}
+function storyQuestion(plan, input, tokens, newCharacter, selected) {
+  const plain={text:plan.nextQuestion};
+  if (!plan.note || plan.complete || plan.characterless) return {question:plain};
+
+  const firstWord=tokens[0];
+  const lastWord=tokens[tokens.length-1];
+  const span=(start,end)=>({text:input.slice(start,end),start,end});
+  const lowerArticle=text=>text.replace(/^(A|An|The)\b(?=\s)/, word=>word.toLowerCase());
+  let detail, wording;
+
+  if (plan.nextPart===2 && newCharacter && newCharacter.text.length<=72 && !/[.!?]/.test(newCharacter.text)) {
+    const start=input.indexOf(newCharacter.text);
+    detail=span(start,start+newCharacter.text.length);
+    wording=['Where might we meet ',lowerArticle(detail.text),'?'];
+  } else if (plan.nextPart===3 && selected?.captures.place) {
+    const place=selected.captures.place;
+    detail=span(place.start,place.end);
+    wording=['What brings your character to the ',detail.text,'?'];
+  } else if (plan.nextPart===4) {
+    const index=tokens.findIndex((token,i)=>['want','wants','need','needs'].includes(token.word) && tokens[i+1]?.word==='to');
+    const actionStart=index>=0 ? tokens[index+2] : firstWord.word==='to' ? tokens[1] : null;
+    if (actionStart) {
+      const action=input.slice(actionStart.start,lastWord.end).split(/[,.!?;]/,1)[0].trimEnd();
+      if (action && action.length<=72) {
+        detail=span(actionStart.start,actionStart.start+action.length);
+        wording=['What might make it hard to ',detail.text,'?'];
+      }
+    }
+  }
+
+  if (!wording && plan.nextPart===3 && plan.note.parts.includes(2)) {
+    return {question:{text:'What brings your character there?'}};
+  }
+  if (!wording && plan.nextPart===6 && plan.note.parts.includes(4)) {
+    return {question:{text:'How does your character respond?'}};
+  }
+
+  if (!wording) return {question:plain};
+  const [before,text,after]=wording;
+  return {
+    detail,
+    question:{text:before+text+after,parts:[{text:before},{text,name:DETAIL_SLOT},{text:after}]}
+  };
+}
+function planStoryTurn(input, hits, newCharacter, contextCheck, choice) {
+  const skipped = contextCheck === 'skip' ? askedPart : null;
+  const characterless = choice ? choice==='absent' : storyMemory.characterless && !newCharacter;
+  const isStoryDetail = (!contextCheck || choice==='absent') && !input.endsWith('?');
+  const mentionedParts = new Set(
+    isStoryDetail ? hits.map(hit => hit.topic).filter(number => STORY_PARTS.some(part => part.number === number)) : []
+  );
+  if (characterless) {
+    mentionedParts.delete(1);
+    mentionedParts.delete(3);
+  }
+  if (!newCharacter) mentionedParts.delete(1);
+  if (isStoryDetail && newCharacter) mentionedParts.add(1);
+
+  // Short answers such as "A bakery" can answer the last question without a keyword.
+  const followsQuestion = isStoryDetail && !contextCheck && !mentionedParts.size && askedPart !== null;
+  if (followsQuestion) mentionedParts.add(askedPart);
+  const covered = new Set([...skippedParts, ...storyNotes.flatMap(note => note.parts), ...mentionedParts, skipped]);
+  const eventQuestions = [
+    {number:4, label:'first change', question:'What changes first?'},
+    {number:2, label:'setting', question:'Where does it happen?'},
+    {number:6, label:'ending', question:'How does it end?'}
+  ];
+  const questions=characterless ? eventQuestions : STORY_PARTS;
+  const next = questions.find(part => part.question && !covered.has(part.number));
+  const complete = !next && (storyNotes.length > 0 || isStoryDetail);
+  const question = next ? next.question : 'What else would you like to add to your story?';
+
+  return {
+    note: isStoryDetail ? {text:input, parts:[...mentionedParts],characterless,choice} : null,
+    characterless,
+    coveredParts:[...covered],
+    skipped,
+    nextPart: next?.number ?? null,
+    nextLabel: next?.label.toLowerCase() ?? null,
+    nextQuestion: complete && !completionShown ? 'Here’s your story outline.' : question,
+    complete
+  };
+}
+function analyze(input) {
+  const tokens=tokenize(input);
+  if (!tokens.length) throw new Error('Enter a short English sentence.');
+  if (tokens.length > 60) throw new Error('Use no more than 60 words.');
+  const choice=characterChoice(input);
+  let newCharacter=choice ? null : namedCharacter(tokens,input);
+  // A short introduction can establish a character even when their name isn't in the script.
+  const lookingForCharacter=!choice && !storyMemory.characterless && (askedPart===1 || !storyNotes.length);
+  if (!newCharacter && lookingForCharacter && tokens.length===2 && ['a','an'].includes(tokens[0].word)
+      && !placeWords().includes(tokens[1].word) && !input.endsWith('?')) {
+    newCharacter={text:input.slice(tokens[0].start,tokens[1].end),source:input};
+  }
+  const pronoun=tokens.find(token=>['it','he','she','they','him','her','them'].includes(token.word));
+  const reference=!choice && !newCharacter && pronoun && storyMemory.character ? {token:copy(pronoun),character:copy(storyMemory.character)} : null;
+  const allHits=[];
+  const candidates=config.topics.map((topic, order) => {
+    const hits=tokens.filter(token => topic.keywords.includes(token.word)).map(token => ({...token,topic:topic.number,group:topic.name}));
+    allHits.push(...hits);
+    if (topic.number===1 && !hits.length && reference) hits.push({...pronoun,topic:1,group:topic.name,reference:true});
+    return {topic,hits,order};
+  }).filter(item=>item.hits.length).sort((a,b)=>b.topic.priority-a.topic.priority || a.order-b.order);
+  const attempts=[];
+  let selected=null;
+  const first=tokens[0].word;
+  const responseWords=tokens.map(token=>token.word).join(' ');
+  const uncertain = ["i don't know", 'not sure', "i'm not sure", 'no idea', 'maybe'].includes(responseWords);
+  const contextCheck=choice ? 'character-'+choice
+    : tokens.length===1 && first==='skip' ? 'skip'
+    : tokens.length===1 && ['hello','hi','hey'].includes(first) ? 'greeting'
+    : uncertain ? 'uncertain'
+    : !newCharacter && !allHits.length && !storyMemory.characterless && ['that',"that's"].includes(first) ? 'ambiguous'
+    : !newCharacter && pronoun && !storyMemory.character && !storyMemory.characterless ? 'unknown' : null;
+  for (const candidate of contextCheck ? [] : candidates) {
+    for (const rule of candidate.topic.rules) {
+      const match=matchRule(rule,tokens,input,candidate.hits,reference);
+      attempts.push({id:ruleId(candidate.topic,rule),description:describe(rule),matched:!!match});
+      if (match) { selected={topic:candidate.topic,rule,hits:candidate.hits,...match}; break; }
+    }
+    if (selected) break;
+  }
+  if (selected && selected.rule.type==='after' && selected.captures.character && !selected.captures.character.fromMemory) {
+    newCharacter={text:selected.captures.character.text,source:input};
+  }
+  const plan=planStoryTurn(input,allHits,newCharacter,contextCheck,choice);
+  const guide=storyQuestion(plan,input,tokens,newCharacter,selected);
+  const key=contextCheck ? 'context:'+contextCheck : selected ? selected.topic.number+':'+selected.rule.number : 'fallback';
+  const defaultRule=selected && DEFAULT_CONFIG.topics.find(topic=>topic.number===selected.topic.number)
+    ?.rules.find(rule=>rule.number===selected.rule.number);
+  const isDefault=defaultRule && defaultRule.type===selected.rule.type &&
+    defaultRule.phrase===selected.rule.phrase && defaultRule.capture===selected.rule.capture &&
+    defaultRule.replies.length===selected.rule.replies.length &&
+    defaultRule.replies.every((reply,index)=>reply===selected.rule.replies[index]);
+  const preferredPart=isDefault ? DEFAULT_REPLY_PARTS.get(key) : null;
+  const needsCharacter=preferredPart===3 && !plan.coveredParts.includes(1);
+  const alreadyAnswered=preferredPart===null ? !plan.complete : plan.coveredParts.includes(preferredPart);
+  const adjustQuestion=isDefault && !plan.characterless && (needsCharacter || alreadyAnswered);
+  const replies=choice==='absent' ? ['Let’s follow an event. [next_question]']
+    : choice==='open' ? ['We can leave that open. What else do you picture?']
+    : choice==='negated-description' ? ['What do you know about your character so far?']
+    : contextCheck==='skip' ? ['[next_question]']
+    : contextCheck==='greeting' ? [OPENING]
+    : contextCheck==='uncertain' ? ['We can leave that open. What part of the story can you picture?']
+    : contextCheck==='ambiguous' ? ['Which part of the story are you thinking of?']
+    : contextCheck==='unknown' ? ['Who does “'+pronoun.text+'” refer to in your story?']
+    : plan.characterless && isDefault ? config.fallback
+    : selected ? selected.rule.replies : config.fallback;
+  const previous=lastReplies.get(key);
+  const available=replies.map((_,index)=>index).filter(index=>replies[index]!==previous);
+  const templateIndex=available.length ? available[Math.floor(Math.random()*available.length)] : 0;
+  const chosenReply=replies[templateIndex];
+  // Keep the rule's acknowledgment when the story needs a different question.
+  const template=adjustQuestion ? chosenReply.replace(/\s+[^.!?]*\?$/, ' [next_question]') : chosenReply;
+  const captures=selected ? selected.captures : {message:{text:input,start:0,end:input.length}};
+  captures[GUIDE_SLOT]=guide.question;
+  const usedNames=[...template.matchAll(/\[([a-z][a-z0-9_]*)\]/gi)].map(match=>match[1].toLowerCase());
+  const replyParts=fillTemplate(template,captures);
+  if (guide.detail && usedNames.includes(GUIDE_SLOT)) captures[DETAIL_SLOT]=guide.detail;
+  const primary=selected && usedNames.includes(selected.primary) ? selected.primary : replyParts.find(part=>part.name && part.name!==GUIDE_SLOT)?.name ?? null;
+  return {
+    input,tokens,allHits:copy(allHits),candidates:candidates.map(item=>({number:item.topic.number,name:item.topic.name,priority:item.topic.priority})),
+    newCharacter,reference,choice,contextCheck,description:selected ? describe(selected.rule) : '',
+    plan, usedGuide:usedNames.includes(GUIDE_SLOT), preferredPart,
+    templateChanged:template!==chosenReply,
+    scriptOption:selected && replies===selected.rule.replies ? {index:templateIndex,count:replies.length} : null,
+    topic:selected ? copy(selected.topic) : null, rule:selected ? copy(selected.rule) : null,
+    hits:selected ? copy(selected.hits) : [], anchor:selected ? selected.anchor : null, primary,
+    captures:copy(captures), attempts, key, chosenReply, template,
+    replyParts,reply:replyParts.map(part=>part.text).join('').replace(/\s+([,.?!])/g,'$1').replace(/\s+/g,' ').trim(),committed:false
+  };
+}
+function commit(result) {
+  if (result.committed) return;
+  lastReplies.set(result.key,result.chosenReply);
+  if (result.choice==='absent' || result.choice==='open') {
+    storyMemory.character=null;
+    storyMemory.characterless=result.choice==='absent';
+  }
+  if (result.newCharacter) {
+    storyMemory.character=copy(result.newCharacter);
+    storyMemory.characterless=false;
+  }
+  if (result.plan.note) storyNotes.push(result.plan.note);
+  if (result.plan.skipped !== null) skippedParts.add(result.plan.skipped);
+  if (result.usedGuide) askedPart=result.plan.nextPart;
+  else if (!result.contextCheck || result.choice) askedPart=result.preferredPart;
+  result.committed=true;
+}
+function annotatedInput(result) {
+  const primary=result.primary ? result.captures[result.primary] : null;
+  const boundaries=new Set([0,result.input.length]);
+  result.allHits.forEach(hit=>{boundaries.add(hit.start);boundaries.add(hit.end);});
+  for (const range of [primary,result.anchor]) if (range) {boundaries.add(range.start);boundaries.add(range.end);}
+  if (result.reference) {boundaries.add(result.reference.token.start);boundaries.add(result.reference.token.end);}
+  const points=[...boundaries].sort((a,b)=>a-b);
+  return points.slice(0,-1).map((start,i)=>{
+    const end=points[i+1], classes=[];
+    const hits=result.allHits.filter(hit=>start>=hit.start && end<=hit.end);
+    if (hits.length) classes.push('found-keyword');
+    if (result.anchor && start>=result.anchor.start && end<=result.anchor.end) classes.push('found-phrase');
+    if (primary && start>=primary.start && end<=primary.end) classes.push('reused-text');
+    if (result.reference && start>=result.reference.token.start && end<=result.reference.token.end) classes.push('context-word');
+    const text=esc(result.input.slice(start,end));
+    return classes.length ? '<span class="'+classes.join(' ')+'"'+(hits.length?' title="'+esc(hits.map(hit=>hit.group+' keyword').join(', '))+'"':'')+'>'+text+'</span>' : text;
+  }).join('');
+}
+function templateHTML(text) {
+  return esc(text).replace(/\[([a-z][a-z0-9_]*)\]/gi,(_,name)=>'<span class="named-slot">['+(name.toLowerCase()===GUIDE_SLOT?'next question':name)+']</span>');
+}
+function keywordMatchHTML(result) {
+  const groups=new Map();
+  for (const hit of result.allHits) {
+    if (!groups.has(hit.topic)) groups.set(hit.topic,{name:hit.group,words:new Map()});
+    const words=groups.get(hit.topic).words;
+    if (!words.has(hit.word)) words.set(hit.word,hit.text);
+  }
+  if (!groups.size) return '<p class="keyword-match">No keywords matched.</p>';
+
+  const list=new Intl.ListFormat('en',{style:'long',type:'conjunction'});
+  return [...groups].map(([number,group])=>{
+    const words=list.format([...group.words.values()].map(word=>'“'+word+'”'));
+    const verb=group.words.size===1 ? 'is' : 'are';
+    return '<p class="keyword-match"><strong>'+esc(words)+'</strong> '+verb+
+      ' in keyword group '+esc(number)+' ('+esc(group.name)+').</p>';
+  }).join('');
+}
+function ruleMatchHTML(result) {
+  const {rule,anchor}=result;
+  const condition='<p class="rule-reason">'+templateHTML(result.description)+'</p>';
+  if (!anchor) return condition;
+
+  const matched=result.input.slice(anchor.start,anchor.end);
+  const name=rule.type==='after' ? rule.capture : ['character','place'].includes(rule.type) ? rule.type : null;
+  const capture=name ? result.captures[name] : null;
+  const binding=capture
+    ? '<span aria-hidden="true">→</span><span class="named-slot">['+esc(name)+']</span><span>is</span>'+
+      '<span class="reused-text">'+esc(capture.text)+'</span>'
+    : '';
+  return condition+'<p class="capture-binding"><strong>Matched</strong>'+
+    '<span class="match-fragment">“'+esc(matched)+'”</span>'+binding+'</p>';
+}
+function renderTrace() {
+  if (!trace) return;
+  const noteLabels={
+    greeting:'Opening prompt',
+    skip:'Skip this question',
+    uncertain:'Leave this detail open',
+    ambiguous:'Clarify the reference',
+    unknown:'Clarify the reference',
+    'character-absent':'A story without a main character',
+    'character-open':'Leave the character open',
+    'character-negated-description':'Ask about the character'
+  };
+  const contextReasons={
+    greeting:'A greeting opens the story prompt.',
+    skip:'The guide moves past the last question.',
+    ambiguous:'“That” could mean a character, a place, or an event. StoryMate asks which one.',
+    uncertain:'The message leaves the current story detail open.',
+    unknown:'The message uses a pronoun before a character has been named.',
+    'character-absent':'The message says there is no character. The guide follows events.',
+    'character-open':'The message leaves the character undecided.',
+    'character-negated-description':'The message rules out a description. StoryMate asks for another detail.'
+  };
+
+  const matchedLabel=trace.rule ? 'Match '+ruleId(trace.topic,trace.rule) : noteLabels[trace.contextCheck] || 'No rule matched';
+  const currentTopic=trace.topic ? config.topics.find(topic=>topic.number===trace.topic.number) : null;
+  const currentRule=currentTopic && trace.rule ? currentTopic.rules.find(rule=>rule.number===trace.rule.number) : null;
+  const recordedNote=trace.committed && trace.rule && (!currentRule || JSON.stringify(currentTopic)!==JSON.stringify(trace.topic))
+    ? '<p class="recorded-note">'+(!currentRule?'This reply used a rule that has since been removed.':'This reply was recorded before the latest script edit.')+'</p>'
+    : '';
+  const groupOrder=trace.rule && trace.candidates.length>1
+    ? '<p class="rule-reason">Keyword group priority is '+trace.candidates.map(group=>esc(group.number)).join(' → ')+'.</p>'
+    : '';
+  const ruleDetails=trace.rule
+    ? ruleMatchHTML(trace)
+    : '<p class="rule-reason">'+esc(contextReasons[trace.contextCheck] || 'StoryMate used a fallback reply.')+'</p>';
+  const alternatives=trace.attempts.length>1
+    ? '<details class="trace-more"><summary>Rules checked</summary>'+trace.attempts.map(item=>
+      '<p><strong>'+esc(item.id)+'</strong> · '+esc(item.description)+' '+(item.matched?'Matched.':'Did not match.')+'</p>').join('')+'</details>'
+    : '';
+
+  const replyHTML=trace.replyParts.map(part=>part.name && part.name!==GUIDE_SLOT
+    ? '<span class="reused-text">'+esc(part.text)+'</span>' : esc(part.text)).join('');
+  const replyPattern=trace.template!==trace.reply
+    ? '<p class="reply-template"><span class="syntax">Template</span> '+templateHTML(trace.template)+'</p>' : '';
+  const guideNote=trace.usedGuide && trace.plan.nextLabel
+    ? '<p class="source-key">The guide selected a question about the '+esc(trace.plan.nextLabel)+'.</p>' : '';
+  const variationNote=trace.scriptOption && trace.scriptOption.count>1
+    ? '<p class="source-key">Reply option '+(trace.scriptOption.index+1)+' of '+trace.scriptOption.count+'.'+
+      (trace.templateChanged?' The question was adjusted to fit the story so far.':'')+'</p>' : '';
+
+  const referenceNote=trace.reference
+    ? '<p class="memory-note">“'+esc(trace.reference.token.text)+'” refers to the last character, <strong>'+
+      esc(trace.reference.character.text)+'</strong>.</p><details class="memory-source"><summary>Earlier message</summary><p>'+
+      esc(trace.reference.character.source)+'</p></details>' : '';
+  const editButton=trace.rule ? '<button type="button" class="text-button" id="edit-matched-rule">Edit this rule</button>' : '';
+
+  $('trace-body').innerHTML=
+    '<div class="trace-source"><h3 class="trace-heading">Match keywords</h3><p class="annotated-message">'+
+    annotatedInput(trace)+'</p>'+keywordMatchHTML(trace)+referenceNote+'</div>'+
+    '<div class="matched-rule"><div class="trace-rule-heading"><h3 class="trace-heading">'+esc(matchedLabel)+'</h3>'+
+    editButton+'</div>'+groupOrder+ruleDetails+recordedNote+alternatives+'</div>'+
+    '<div class="trace-result"><h3 class="trace-heading">Reply</h3>'+replyPattern+'<p class="built-reply">'+
+    replyHTML+'</p>'+variationNote+guideNote+'</div>';
+
+  const edit=$('edit-matched-rule');
+  if (edit) {
+    edit.hidden=!currentRule;
+    edit.addEventListener('click',()=>openEditor(trace.topic.number,trace.rule.number));
+  }
+}
+function renderScript() {
+  const topic=config.topics.find(item=>item.number===selectedTopic)||config.topics[0];
+  if (topic) selectedTopic=topic.number;
+  $('topic-select').innerHTML=config.topics.map(item=>'<option value="'+item.number+'">'+item.number+'. '+esc(item.name)+'</option>').join('')+'<option value="new">New keyword group…</option>';
+  if (topic) $('topic-select').value=String(topic.number);
+  $('add-rule').disabled=false;
+  $('add-rule').textContent=topic?'Add a rule':'Add keyword group';
+  if (!topic) { $('script-body').innerHTML='<p class="empty-script">Add a keyword group to start a script.</p>'; return; }
+  $('script-body').innerHTML='<div class="script-keywords"><p class="small-label">keyword group '+topic.number+': '+esc(topic.name)+'</p><p>'+esc(topic.keywords.join(', '))+'</p>'+
+    (topic.number===1 ? '<form id="character-words-form" class="character-words-form"><label for="extra-character-words">Add character words</label><div class="word-compose"><input id="extra-character-words" placeholder="unicorn, fairy, fox" autocomplete="off" spellcheck="false"><button class="secondary" type="submit">Add words</button></div></form>' : '')+'</div>'+
+    '<p class="outer-if"><span class="syntax">if keyword exists</span> in the message:</p><p class="script-order">Rules are checked in order. StoryMate picks one reply at random.</p>'+
+    '<div class="script-rules">'+topic.rules.map(rule=>{
+      const active=trace && trace.topic && trace.topic.number===topic.number && trace.rule.number===rule.number;
+      return '<article class="script-rule'+(active?' active-rule':'')+'" id="script-rule-'+topic.number+'-'+rule.number+'"><div class="script-rule-heading"><h3>'+ruleId(topic,rule)+'</h3><button type="button" class="text-button" data-edit="'+rule.number+'">Edit</button></div>'+
+        '<div class="script-line"><span class="syntax">if match</span><span>'+esc(describe(rule))+'</span></div>'+
+        '<div class="script-line"><span class="syntax">then reply</span><span>'+rule.replies.map((reply,i)=>(i?'<span class="reply-or">or </span>':'')+templateHTML(reply)).join('<br>')+'</span></div></article>';
+    }).join('')+'</div>';
+}
+function selectView(view) {
+  const chat=view==='chat';
+  $('chat-tab').setAttribute('aria-selected',String(chat));
+  $('explain-tab').setAttribute('aria-selected',String(!chat));
+  $('chat-tab').tabIndex=chat?0:-1;
+  $('explain-tab').tabIndex=chat?-1:0;
+  $('chat-panel').hidden=!chat;
+  $('explain-panel').hidden=chat;
+  if (chat) $('chat-log').scrollTop=$('chat-log').scrollHeight;
+}
+function showOutline() {
+  if (!storyNotes.length) return;
+  $('story-outline')?.remove();
+  const notes = storyNotes.map(note => {
+    const labels=STORY_PARTS.filter(part=>note.parts.includes(part.number)).map(part=>note.characterless && part.number===4 ? 'Change' : part.label);
+    if (note.choice==='absent') labels.unshift('Story choice');
+    const label=labels.length ? '<strong>'+esc(labels.join(' / '))+'</strong> · ' : '';
+    return '<li>'+label+esc(note.text)+'</li>';
+  });
+  $('chat-log').insertAdjacentHTML('beforeend', '<section class="chat-turn assistant outline" id="story-outline" aria-labelledby="outline-title"><div class="bubble eliza"><h3 id="outline-title">Your story outline</h3><ul>'+notes.join('')+'</ul></div></section>');
+  const log=$('chat-log');
+  log.scrollTop += $('story-outline').getBoundingClientRect().top - log.getBoundingClientRect().top - 14;
+}
+function sendMessage() {
+  try {
+    const input=$('chat-sentence').value.trim();
+    if (!input) throw new Error('Enter a message.');
+    const result=analyze(input);commit(result);chatTurns.push(result);
+    if (chatTurns.length===1) $('chat-log').innerHTML='';
+    $('chat-log').insertAdjacentHTML('beforeend','<div class="chat-turn user"><p class="speaker">You</p><p class="bubble user">'+esc(input)+'</p></div><div class="chat-turn assistant"><p class="speaker">StoryMate</p><p class="bubble eliza">'+esc(result.reply)+'</p><button type="button" class="text-button message-explain" data-explain="'+(chatTurns.length-1)+'" aria-label="Explain reply '+chatTurns.length+'">Explain</button></div>');
+    $('show-outline').disabled=!storyNotes.length;
+    $('chat-sentence').value='';
+    $('chat-status').textContent='';
+    $('chat-sentence').removeAttribute('aria-invalid');
+    $('chat-log').scrollTop=$('chat-log').scrollHeight;
+    $('chat-sentence').focus();
+    if (result.plan.complete && !completionShown) {
+      completionShown=true;
+      showOutline();
+    }
+  } catch(error) { $('chat-status').textContent=error.message;$('chat-status').classList.add('error');$('chat-sentence').setAttribute('aria-invalid','true'); }
+}
+function preview(selectMatched=true) {
+  try {
+    trace=analyze($('trace-input').value.trim());
+    $('trace-status').textContent='';
+    $('trace-input').removeAttribute('aria-invalid');
+    if (selectMatched && trace.topic) selectedTopic=trace.topic.number;
+    renderScript();renderTrace();
+  } catch(error) { $('trace-status').textContent=error.message;$('trace-input').setAttribute('aria-invalid','true'); }
+}
+function setStatus(text,error=false) { $('rules-status').textContent=text;$('rules-status').classList.toggle('error',error); }
+function saveConfig() { try {localStorage.setItem(STORAGE_KEY,JSON.stringify(config));} catch(_) {} }
+function addCharacterWords() {
+  try {
+    const additions=$('extra-character-words').value.toLowerCase().trim().split(/[,\s]+/).filter(Boolean);
+    if (!additions.length) throw new Error('Enter a character word, such as unicorn.');
+    const candidate=copy(config), topic=candidate.topics.find(item=>item.number===1);
+    topic.keywords=[...new Set([...topic.keywords,...additions])];
+    config=validateConfig(candidate);saveConfig();renderScript();preview(false);
+    setStatus('Character words added: '+additions.join(', ')+'. They are active in Chat.');
+  } catch(error) { setStatus(error.message,true); }
+}
+function upgradeGuidance(candidate) {
+  if (candidate.guidanceVersion>=4) return candidate;
+  const old={
+    '1.1':['What is special about [character]?','What does [character] want more than anything?'],
+    '1.2':['What does the [character] want more than anything?','What is the [character] afraid of losing?'],
+    '1.3':['What makes your main character interesting?'],
+    '2.1':['What is unusual about the [place]?','Who else lives in the [place]?'],
+    '2.2':['What makes this place different?'],
+    '3.1':['What stands in the way of that goal?','What could the character lose if they fail?'],
+    '4.1':['How could your character get past this obstacle?','What could make this problem even harder?'],
+    '5.1':['Who else knows the secret?','What happens if the secret is revealed?'],
+    '5.2':['What would make this surprise matter to your character?'],
+    '6.1':['What should change for your character by the end?','What choice could bring the story to an end?']
+  };
+  const previous={
+    '1.1':['Where does [character] live? Try a forest, a castle, or a mountain.','What does [character] want? Try "They want to ...".'],
+    '1.2':['Where does your character live? Try a forest, a castle, or a mountain.','What does your character want? Try "They want to ...".'],
+    '1.3':['Tell me one thing about your character, then choose a place: a forest, a castle, or a mountain.'],
+    '2.1':['What does your character want in the [place]? Try "They want to ...".','What makes the [place] unusual? Is there a secret or a problem?'],
+    '2.2':['Choose a place for the story: a forest, a castle, or a mountain. What does your character want there?'],
+    '3.1':['What gets in the way? Try "But ..." to introduce a problem.','Who or what could stop them? Add a problem, or let them discover a secret.'],
+    '4.1':['How could your character get past this problem? Could a secret help?','Who could help them? Perhaps someone knows a secret.'],
+    '5.1':['Who knows the secret, and how could it change the ending?','What happens when the secret is revealed? Try "Finally ..." to begin your ending.'],
+    '5.2':['How does this surprise change the story? Think about a problem or the ending.'],
+    '6.1':['What changes for your character at the end? Could you give your story a title?','Does the ending solve the problem? What has your character learned?']
+  };
+  const guided={
+    '1.1':['Let’s tell a story about [character]. [next_question]'],
+    '2.1':['The [place] can be your setting. [next_question]']
+  };
+  for (const topic of candidate.topics) for (const rule of topic.rules) {
+    const key=topic.number+'.'+rule.number;
+    const replies=JSON.stringify(rule.replies);
+    const replacement=DEFAULT_CONFIG.topics.find(item=>item.number===topic.number)?.rules.find(item=>item.number===rule.number);
+    if (replacement && rule.type===replacement.type && rule.phrase===replacement.phrase && rule.capture===replacement.capture &&
+        [old[key],previous[key],guided[key],['[next_question]']].some(words=>JSON.stringify(words)===replies)) {
+      rule.replies=copy(replacement.replies);
+    }
+  }
+  const places=candidate.topics.find(topic=>topic.number===2);
+  if (places && places.rules.some(rule=>rule.type==='place')) {
+    for (const word of ['mountain','village','island']) {
+      if (!candidate.topics.some(topic=>topic.keywords.includes(word))) places.keywords.push(word);
+    }
+  }
+  const earlierFallbacks=[
+    ['[next_question]'],
+    ['What happens next?','Can you add one specific detail?','What choice does your character make?'],
+    ['Tell me who your character is, or choose a place: a forest, a castle, or a mountain.','What does your character want? Try "They want to ...".','What gets in their way? Try "But ...", or add a secret.']
+  ];
+  if (earlierFallbacks.some(replies=>JSON.stringify(replies)===JSON.stringify(candidate.fallback))) candidate.fallback=copy(DEFAULT_CONFIG.fallback);
+  candidate.guidanceVersion=4;
+  return candidate;
+}
+function upgradeVocabulary(candidate) {
+  if (candidate.vocabularyVersion>=VOCABULARY_VERSION) return candidate;
+  const claimedWords = new Set(candidate.topics.flatMap(topic => topic.keywords));
+  for (const topic of candidate.topics) {
+    for (const word of EXTRA_KEYWORDS[topic.number] || []) {
+      if (claimedWords.has(word)) continue;
+      topic.keywords.push(word);
+      claimedWords.add(word);
+    }
+  }
+  candidate.vocabularyVersion=VOCABULARY_VERSION;
+  return candidate;
+}
+function captureOptions(rule) {
+  const name=slotName(rule);
+  return [...new Set(['message','keyword',GUIDE_SLOT,...(rule.type==='after'?[name,'before']:rule.type==='character'||rule.type==='place'?[name]:[])])];
+}
+function validateConfig(candidate) {
+  if (!candidate || !Array.isArray(candidate.topics) || !Array.isArray(candidate.fallback) || !candidate.fallback.length) throw new Error('The saved script is incomplete.');
+  const keywords=new Set(), topicNumbers=new Set();
+  for (const topic of candidate.topics) {
+    if (!Number.isInteger(topic.number)||topicNumbers.has(topic.number)) throw new Error('Keyword groups need different numbers.');
+    topicNumbers.add(topic.number);
+    topic.name=String(topic.name||'New group').trim();
+    topic.keywords=[...new Set(topic.keywords.map(word=>String(word).toLowerCase().trim()).filter(Boolean))];
+    if (!topic.keywords.length || topic.keywords.some(word=>!/^(?:[a-z]+(?:'[a-z]+)?|[0-9]+)$/.test(word))) throw new Error('Enter keywords as single English words, separated by commas.');
+    for (const word of topic.keywords) {if (keywords.has(word)) throw new Error('"'+word+'" is already in another keyword group.');keywords.add(word);}
+    topic.priority=Number(topic.priority);
+    if (!Number.isInteger(topic.priority)||topic.priority<0||topic.priority>1000) throw new Error('Priority must be a whole number from 0 to 1000.');
+    if (!topic.rules.length) throw new Error('A keyword group needs at least one rule.');
+    const numbers=new Set();
+    for (const rule of topic.rules) {
+      if (!Number.isInteger(rule.number)||numbers.has(rule.number)) throw new Error('Rules in a group need different numbers.');
+      numbers.add(rule.number);
+      if (!MATCH_TYPES.some(item=>item[0]===rule.type)) throw new Error('Choose how the message should match.');
+      rule.phrase=String(rule.phrase||'').trim().replace(/\s+/g,' ').toLowerCase();
+      rule.capture=String(rule.capture||'detail').trim().toLowerCase();
+      if (['after','phrase','exact'].includes(rule.type)&&!tokenize(rule.phrase).length) throw new Error(ruleId(topic,rule)+': enter the phrase to find.');
+      if (!/^[a-z][a-z0-9_]*$/.test(rule.capture)||['message','keyword','before'].includes(rule.capture)) throw new Error('Name the captured text with a simple word, such as character or detail.');
+      rule.replies=rule.replies.map(text=>String(text).trim()).filter(Boolean);
+      if (!rule.replies.length) throw new Error(ruleId(topic,rule)+': write a reply.');
+      const allowed=captureOptions(rule);
+      for (const reply of rule.replies) {
+        for (const part of reply.matchAll(/\[([^\[\]]*)\]/g)) if (!allowed.includes(part[1].toLowerCase())) throw new Error(ruleId(topic,rule)+': available text parts are '+allowed.map(name=>'['+name+']').join(', ')+'.');
+        if (/[\[\]{}]/.test(reply.replace(/\[[a-z][a-z0-9_]*\]/gi,''))) throw new Error('Use a named text part such as [character].');
+      }
+    }
+    topic.nextRule=Math.max(Number(topic.nextRule)||1,...topic.rules.map(rule=>rule.number+1));
+  }
+  candidate.nextTopic=Math.max(Number(candidate.nextTopic)||1,...candidate.topics.map(topic=>topic.number+1));
+  return candidate;
+}
+function editorFields() {
+  const rule=editState.rule;
+  const needsPhrase=['after','phrase','exact'].includes(rule.type);
+  $('phrase-field').hidden=!needsPhrase;
+  $('capture-field').hidden=rule.type!=='after';
+  $('edit-phrase').value=rule.phrase||'';
+  $('edit-capture').value=rule.capture||'detail';
+  $('insert-part').textContent='Insert ['+slotName(rule)+']';
+  $('match-help').textContent=describe(rule);
+}
+function openEditor(topicNumber,number=null) {
+  const topic=config.topics.find(item=>item.number===topicNumber);
+  const fresh=!topic;
+  const workingTopic=fresh ? {number:config.nextTopic,name:'New group',keywords:[],priority:70,nextRule:2,rules:[]} : copy(topic);
+  const existing=number===null ? null : workingTopic.rules.find(rule=>rule.number===number);
+  const rule=existing ? copy(existing) : defaultRule(fresh?1:workingTopic.nextRule,'keyword',['']);
+  editState={topic:workingTopic,rule,isNewGroup:fresh,isNewRule:!existing};
+  $('editor-title').textContent=(existing?'Edit ':'Add ')+ruleId(workingTopic,rule);
+  $('edit-keywords').value=workingTopic.keywords.join(', ');
+  $('keyword-help').textContent=fresh ? 'These words start a new keyword group.' : 'Shared by keyword group '+workingTopic.number+'.';
+  $('edit-match').innerHTML=MATCH_TYPES.map(item=>'<option value="'+item[0]+'">'+item[1]+'</option>').join('');
+  $('edit-match').value=rule.type;
+  $('edit-replies').value=rule.replies.join('\n');
+  $('edit-name').value=workingTopic.name;
+  $('edit-priority').value=workingTopic.priority;
+  $('editor-more').open=false;
+  $('editor-status').textContent='';
+  $('delete-rule').hidden=!existing;
+  editorFields();
+  $('rule-dialog').showModal();
+  $(fresh?'edit-keywords':'edit-match').focus();
+}
+function saveEditedRule() {
+  try {
+    const candidate=copy(config), topic=copy(editState.topic), rule=copy(editState.rule);
+    topic.keywords=$('edit-keywords').value.split(/[,\s]+/).filter(Boolean);
+    topic.name=$('edit-name').value.trim()||topic.keywords[0]||'New group';
+    if (editState.isNewGroup && topic.name==='New group' && topic.keywords[0]) topic.name=topic.keywords[0][0].toUpperCase()+topic.keywords[0].slice(1);
+    topic.priority=Number($('edit-priority').value);
+    rule.type=$('edit-match').value;rule.phrase=$('edit-phrase').value;rule.capture=$('edit-capture').value;
+    rule.replies=$('edit-replies').value.split(/\r?\n/);
+    if (editState.isNewRule) {
+      topic.rules.unshift(rule);
+      topic.nextRule=Math.max(topic.nextRule,rule.number+1);
+    } else topic.rules[topic.rules.findIndex(item=>item.number===rule.number)]=rule;
+    if (editState.isNewGroup) candidate.topics.push(topic);
+    else candidate.topics[candidate.topics.findIndex(item=>item.number===topic.number)]=topic;
+    candidate.nextTopic=Math.max(candidate.nextTopic,topic.number+1);
+    config=validateConfig(candidate);lastReplies.clear();selectedTopic=topic.number;saveConfig();
+    $('rule-dialog').close();renderScript();preview(false);
+    setStatus(ruleId(topic,rule)+' saved. It is active in Chat.');
+  } catch(error) { $('editor-status').textContent=error.message; }
+}
+function deleteEditedRule() {
+  const topic=config.topics.find(item=>item.number===editState.topic.number);
+  topic.rules=topic.rules.filter(rule=>rule.number!==editState.rule.number);
+  if (!topic.rules.length) config.topics=config.topics.filter(item=>item!==topic);
+  lastReplies.clear();saveConfig();$('rule-dialog').close();renderScript();preview();setStatus('Rule removed.');
+}
+function importLegacy(saved) {
+  let migrated=copy(DEFAULT_CONFIG);
+  migrated.topics=saved.rules.map((group,index)=>({
+    number:index+1,name:DEFAULT_CONFIG.topics[index] ? DEFAULT_CONFIG.topics[index].name : (group.keywords[0]||'New group'),
+    keywords:group.keywords,priority:group.rank,nextRule:group.patterns.length+1,
+    rules:group.patterns.map((pattern,pi)=>{
+      const words=pattern.tokens;
+      let type='keyword', phrase='', capture=index===0?'character':'detail', replacements={};
+      if (words.length===1 && words[0]==='*') replacements[1]='[message]';
+      else if (words.join(' ')==='* @character *' || words.join(' ')==='* @place *') {
+        type=words[1].slice(1);replacements[2]='['+type+']';
+      } else if (words[0]==='*' && words[words.length-1]==='*' && words.slice(1,-1).every(word=>word!=='*'&&!word.startsWith('@'))) {
+        const usesTail=pattern.replies.some(reply=>reply.includes('{'+words.length+'}'));
+        type=usesTail?'after':'phrase';phrase=words.slice(1,-1).join(' ');
+        replacements[1]='[before]';replacements[words.length]='['+capture+']';
+        words.forEach((word,wi)=>{if (word!=='*') replacements[wi+1]=word;});
+      } else throw new Error('An older custom pattern needs its saved format.');
+      const replies=pattern.replies.map(reply=>reply.replace(/\{([0-9]+)\}/g,(_,n)=>{
+        if (!(n in replacements)) throw new Error('An older capture needs its saved format.');
+        return replacements[n];
+      }));
+      return defaultRule(pi+1,type,replies,phrase,capture);
+    })
+  }));
+  migrated.nextTopic=migrated.topics.length+1;
+  migrated.fallback=saved.fallback.replies;
+  migrated.guidanceVersion=0;
+  migrated.vocabularyVersion=0;
+  return validateConfig(migrated);
+}
+function initialize() {
+  try {
+    const saved=JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (saved) config=validateConfig(saved);
+    else {
+      const older=JSON.parse(localStorage.getItem(LEGACY_KEY));
+      if (older) config=importLegacy(older);
+    }
+  } catch(_) {config=copy(DEFAULT_CONFIG);}
+  config=validateConfig(upgradeVocabulary(upgradeGuidance(config)));saveConfig();
+  $('chat-log').innerHTML='<p class="chat-greeting">'+esc(OPENING)+'</p>';
+  renderScript();preview();
+  document.querySelectorAll('.parade-track').forEach(track=>track.addEventListener('click',()=>{
+    const paused=track.classList.toggle('is-paused');track.setAttribute('aria-pressed',String(paused));
+    track.setAttribute('aria-label',paused?'Resume characters':'Pause characters');track.title=paused?'Resume characters':'Pause characters';
+  }));
+  $('chat-tab').addEventListener('click',()=>selectView('chat'));
+  $('explain-tab').addEventListener('click',()=>selectView('rules'));
+  document.querySelector('[role="tablist"]').addEventListener('keydown',event=>{
+    if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+    event.preventDefault();
+    const chat=event.key==='Home'||(event.key!=='End'&&$('chat-tab').getAttribute('aria-selected')!=='true');
+    selectView(chat?'chat':'rules');$(chat?'chat-tab':'explain-tab').focus();
+  });
+  $('chat-form').addEventListener('submit',event=>{event.preventDefault();sendMessage();});
+  $('show-outline').addEventListener('click',showOutline);
+  $('chat-log').addEventListener('click',event=>{
+    const button=event.target.closest('[data-explain]');if (!button) return;
+    trace=chatTurns[Number(button.dataset.explain)];$('trace-input').value=trace.input;
+    if (trace.topic && config.topics.some(topic=>topic.number===trace.topic.number)) selectedTopic=trace.topic.number;
+    $('trace-status').textContent='';renderScript();renderTrace();selectView('rules');
+    $('explanation').scrollIntoView({block:'start'});$('explanation').focus({preventScroll:true});
+  });
+  $('clear-chat').addEventListener('click',()=>{
+    chatTurns.length=0;lastReplies.clear();storyMemory.character=null;storyMemory.characterless=false;$('chat-log').innerHTML='<p class="chat-greeting">'+esc(OPENING)+'</p>';
+    storyNotes.length=0;skippedParts.clear();askedPart=null;completionShown=false;$('show-outline').disabled=true;
+    $('chat-status').textContent='';$('chat-sentence').value='';$('chat-sentence').removeAttribute('aria-invalid');$('chat-sentence').focus();
+  });
+  $('trace-form').addEventListener('submit',event=>{event.preventDefault();preview();});
+  $('topic-select').addEventListener('change',()=>{
+    if ($('topic-select').value==='new') {renderScript();openEditor(null);return;}
+    selectedTopic=Number($('topic-select').value);renderScript();
+  });
+  $('script-body').addEventListener('click',event=>{const button=event.target.closest('[data-edit]');if (button) openEditor(selectedTopic,Number(button.dataset.edit));});
+  $('script-body').addEventListener('submit',event=>{if (event.target.id==='character-words-form') {event.preventDefault();addCharacterWords();}});
+  $('add-rule').addEventListener('click',()=>openEditor(selectedTopic));
+  $('restore-defaults').addEventListener('click',()=>{config=copy(DEFAULT_CONFIG);lastReplies.clear();selectedTopic=1;saveConfig();renderScript();preview();setStatus('Default script restored.');});
+  $('rule-editor').addEventListener('submit',event=>{event.preventDefault();saveEditedRule();});
+  $('cancel-editor').addEventListener('click',()=>$('rule-dialog').close());
+  $('delete-rule').addEventListener('click',deleteEditedRule);
+  $('edit-match').addEventListener('change',()=>{editState.rule.type=$('edit-match').value;editorFields();});
+  $('edit-phrase').addEventListener('input',()=>{editState.rule.phrase=$('edit-phrase').value;$('match-help').textContent=describe(editState.rule);});
+  $('edit-capture').addEventListener('input',()=>{editState.rule.capture=$('edit-capture').value;$('insert-part').textContent='Insert ['+slotName(editState.rule)+']';});
+  $('insert-part').addEventListener('click',()=>{
+    const field=$('edit-replies'), text='['+slotName(editState.rule)+']', start=field.selectionStart, end=field.selectionEnd;
+    field.value=field.value.slice(0,start)+text+field.value.slice(end);field.focus();field.setSelectionRange(start+text.length,start+text.length);
+  });
+}
+initialize();
+  </script>
+</body>
+</html>
