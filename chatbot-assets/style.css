@@ -20,7 +20,7 @@
 body { margin: 0; min-height: 100dvh; }
 main { width: min(100% - 28px, 990px); margin: 24px auto; }
 h1, h2, p { margin: 0; }
-.page-heading { margin-bottom: 15px; text-align: center; }
+.page-heading { margin-bottom: 37px; text-align: center; }
 h1 { color: var(--accent); font: 700 clamp(2.65rem, 8vw, 3.8rem)/1 Georgia, serif; text-shadow: 2px 3px #fff, 3px 5px #241e3426; }
 .subtitle { margin-top: 8px; color: var(--muted); font-size: .95rem; }
 h2 { font-size: 1.1rem; }
@@ -30,7 +30,17 @@ button:disabled { cursor: default; opacity: .6; }
 :focus-visible { outline: 3px solid #168578; outline-offset: 2px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-.chat { padding: 10px 13px 12px; border: 3px solid var(--accent); border-radius: 18px; background: var(--purple); box-shadow: var(--shadow); }
+.chat { position: relative; padding: 10px 13px 12px; border: 3px solid var(--accent); border-radius: 18px; background: var(--purple); box-shadow: var(--shadow); }
+.chat-mascot {
+  position: absolute;
+  inset-inline-end: 16px;
+  inset-block-end: calc(100% - 7px);
+  display: block;
+  width: clamp(84px, 13vw, 112px);
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+}
 .chat-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; color: #fff; }
 .text-button { border: 0; background: transparent; color: inherit; font-size: .875rem; text-decoration: underline; text-underline-offset: 3px; }
 .chat-log { min-height: 90px; max-height: 205px; overflow: auto; overscroll-behavior: contain; padding: 9px; border: 2px solid var(--accent); border-radius: 10px; background: #fffcf4; }
@@ -170,7 +180,11 @@ textarea.row-field { display: block; field-sizing: content; resize: vertical; }
 footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; margin-top: 12px; color: var(--muted); font-size: .875rem; }
 footer a { color: inherit; text-underline-offset: 3px; }
 
+@media (min-width: 780px) and (max-width: 960px) {
+  .chat-mascot { width: 90px; inset-block-end: calc(100% - 11px); }
+}
 @media (max-width: 590px) {
+  .page-heading { margin-bottom: 66px; }
   .board { grid-template-columns: 1fr; }
   .rule-list, .reply-list { max-height: 245px; }
 }
