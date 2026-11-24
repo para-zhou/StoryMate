@@ -442,6 +442,7 @@ class Transform {
         this.decomposition = decomposition;
         this.reassemblyRules = reassemblyRules;
         this.nextReassemblyRule = 0;
+        this.selectedReassemblyRule = -1;
     }
 };
 
@@ -479,7 +480,7 @@ class RuleKeyword {
     hasTransformation() {
         return this.transforms.length > 0 || !!this.linkKeyword;
     }
-    applyTransformation(words, tags) {
+    applyTransformation(words, tags, randomReplies = false) {
         this.trace =
             TRACE_PREFIX + 'selected keyword: ' + this.keyword + '\n' +
             TRACE_PREFIX + 'input: ' + join(words) + '\n';
@@ -506,8 +507,17 @@ class RuleKeyword {
             return [ACTION_LINKKEY, words, this.linkKeyword];
         }
 
-        let rule = this.transforms[r];
-        const reassemblyRule = rule.reassemblyRules[rule.nextReassemblyRule];
+        const rule = this.transforms[r];
+        let selected = rule.nextReassemblyRule;
+        if (randomReplies) {
+            const candidates = rule.reassemblyRules.filter(isReplyTemplate);
+            if (candidates.length) {
+                const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+                selected = rule.reassemblyRules.indexOf(chosen);
+            }
+        }
+        rule.selectedReassemblyRule = selected;
+        const reassemblyRule = rule.reassemblyRules[selected];
 
         this.trace += TRACE_PREFIX + 'matching decompose pattern: (' + join(rule.decomposition) + ')\n';
         this.trace += TRACE_PREFIX + 'decomposition parts: ';
@@ -938,7 +948,7 @@ class Eliza {
             this.memoryRule.createMemory(topKeyword, words, this.tags);
             this.tracer.createMemory(this.memoryRule.traceText());
 
-            const [ action, response, link ] = rule.applyTransformation(words, this.tags);
+            const [ action, response, link ] = rule.applyTransformation(words, this.tags, this.randomReplies);
             this.tracer.transform(rule.traceText(), rule.toString());
             if (action === ACTION_COMPLETE) {
                 return join(response);
@@ -962,7 +972,7 @@ class Eliza {
         }
 
         const noneRule = this.rules.get(SPECIAL_RULE_NONE);
-        const [ action, response ] = noneRule.applyTransformation(words, this.tags);
+        const [ action, response ] = noneRule.applyTransformation(words, this.tags, this.randomReplies);
         console.assert(action === ACTION_COMPLETE);
         this.tracer.usingNone(noneRule.toString(), noneRule.traceText());
         return join(response);
@@ -2088,8 +2098,7 @@ class HayTrace extends nullTracer {
           var replyOptions = [], selectedReply = 0;
           if (transform) {
             var templates = transform.reassemblyRules;
-            // applyTransformation has already advanced the cycle for this rule.
-            var used = (transform.nextReassemblyRule + templates.length - 1) % templates.length;
+            var used = transform.selectedReassemblyRule;
             templates.forEach(function (template, index) {
               if (!isReplyTemplate(template)) return;
               replyOptions.push(template.slice());
@@ -2251,10 +2260,11 @@ function describeScript(script, inactiveKeywords) {
 // replayed). session.trace(text) returns the structured trace for one turn,
 // including the current memory queue.
 window.ElizaHay = {
-  make: function ({matchOriginalWords = false} = {}) {
+  make: function ({matchOriginalWords = false, randomReplies = false} = {}) {
     var script = buildScriptOrThrow();
     if (matchOriginalWords) useClassroomWording(script);
     var eliza = new Eliza(script.rules, script.memoryRule, new HayTrace(), 0);
+    eliza.randomReplies = randomReplies;
     var inactiveKeywords = new Set();
     eliza.inactiveKeywords = inactiveKeywords;
     var inactiveGroups = new Set();

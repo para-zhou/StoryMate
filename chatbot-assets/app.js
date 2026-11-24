@@ -14,7 +14,7 @@ const defaultKeyword = 'COMPUTER';
 const examples = [...document.querySelectorAll('[data-example]')];
 const chatControls = [input, byId('send'), ...examples];
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-const engine = window.ElizaHay.make({matchOriginalWords:true});
+const engine = window.ElizaHay.make({matchOriginalWords:true, randomReplies:true});
 const groupNames = new Set();
 const wordDefaults = new Map();
 const deletedGroups = new Map();
@@ -296,7 +296,6 @@ function renderBoard(selection, animate = false, focusRule = false) {
   const general = selection.keyword === 'NONE' || selection.kind === 'general';
   const canEditGroup = editingCurrent && !!group && !general && !deletedGroups.has(selection.keyword);
   byId('delete-group').disabled = !canEditGroup;
-  byId('rule-hint').hidden = general || !group?.transforms.length;
   const note = byId('group-note');
   const words = selection.words || wordsForGroup(selection.keyword);
   const sharedGroup = selection.inputKeyword && selection.inputKeyword !== selection.keyword &&

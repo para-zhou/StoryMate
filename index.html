@@ -38,7 +38,7 @@
 
     <p class="save-hint" id="save-hint">Press Enter to save changes.</p>
     <div class="board" id="rule-board">
-      <section class="panel keyword-panel" aria-label="Keywords">
+      <section class="panel keyword-panel" aria-label="Keywords" aria-describedby="keyword-hint">
         <div class="keyword-controls">
           <div>
             <div class="panel-heading">
@@ -48,6 +48,7 @@
                 <button type="button" id="delete-group" class="delete-row" aria-label="Delete selected keyword group" title="Delete selected keyword group" disabled>−</button>
               </div>
             </div>
+            <p class="panel-hint" id="keyword-hint">Find keywords in your message.</p>
             <select id="keyword"></select>
             <form id="new-group-form" class="inline-editor" hidden>
               <label for="new-group-name">Group name</label>
@@ -83,12 +84,12 @@
         </div>
         <p class="group-note" id="group-note"></p>
       </section>
-      <section class="panel rules-panel" aria-labelledby="rules-title">
+      <section class="panel rules-panel" aria-labelledby="rules-title" aria-describedby="rule-hint">
         <div class="panel-heading">
           <h2 class="panel-title" id="rules-title"><span class="step-number">2</span> Rules</h2>
           <button type="button" id="restore-rules" class="edit-button" aria-label="Restore rules" hidden>Restore</button>
         </div>
-        <p class="panel-hint" id="rule-hint">Choose a rule to see its replies.</p>
+        <p class="panel-hint" id="rule-hint">Match your message to a rule.</p>
         <p class="pattern-key"><code>*</code> skip any words · <code>word</code> match exactly · <code>[a/b]</code> match either · <code>[slot 1]</code> save words for a reply</p>
         <ol class="rule-list" id="rule-list" role="list">
           <li class="add-row" hidden>
@@ -108,11 +109,12 @@
         <dl id="capture-guide" class="capture-guide"></dl>
         <p id="editor-status" class="editor-status" role="status"></p>
       </section>
-      <section class="panel replies-panel" aria-labelledby="replies-title">
+      <section class="panel replies-panel" aria-labelledby="replies-title" aria-describedby="reply-hint">
         <div class="panel-heading">
           <h2 class="panel-title" id="replies-title"><span class="step-number">3</span> Replies</h2>
           <button type="button" id="restore-replies" class="edit-button" aria-label="Restore replies" hidden>Restore</button>
         </div>
+        <p class="panel-hint" id="reply-hint">Randomly pick a reply template and fill in any slots.</p>
         <p class="reply-context" id="reply-context" role="status">Choose a rule to see its replies.</p>
         <p id="captured-content" class="matched-words" hidden></p>
         <div id="reply-slots" class="available-slots"></div>
