@@ -507,7 +507,8 @@ async function runExplained() {
 
 const editors = [
   {button:byId('new-group'), form:byId('new-group-form'), field:byId('new-group-name')},
-  {button:byId('add-rule'), form:byId('add-rule-form'), field:byId('add-rule-pattern')}
+  {button:byId('add-rule'), form:byId('add-rule-form'), field:byId('add-rule-pattern')},
+  {button:byId('add-reply'), form:byId('add-reply-form'), field:byId('add-reply-text')}
 ];
 const wordSyntax = /^[A-Z][A-Z0-9]*(?:['-][A-Z0-9]+)*$/;
 const reserved = new Set(['BUT', 'NONE', 'MEMORY', 'NEWKEY']);
@@ -698,6 +699,11 @@ function savePattern(keyword, rule, index, text) {
   ruleList.children[index]?.querySelector('.row-field')?.focus({preventScroll:true});
 }
 
+function parseRuleReply(text, rule) {
+  const names = new Map([...captureNames(rule)].map(([position, name]) => [name, position]));
+  return parseReply(text, names);
+}
+
 function replyRow(editor, value, index) {
   const row = element('li', undefined, 'editor-row reply-row');
   const label = 'Reply ' + (index + 1);
@@ -711,20 +717,15 @@ function replyRow(editor, value, index) {
     return row;
   }
   const {keyword, rule, index:ruleIndex} = editor;
-  const add = value === '';
   const field = editableField(value, label + ' template', 'replies-status', text => {
-    const names = new Map([...captureNames(rule)].map(([position, name]) => [name, position]));
-    const reply = parseReply(text, names);
+    const reply = parseRuleReply(text, rule);
     if (!reply) return 'Enter a reply. Only use slots shown above.';
-    if (add) session.engine.addReply(keyword, ruleIndex, reply);
-    else session.engine.editReply(keyword, ruleIndex, index, reply);
+    session.engine.editReply(keyword, ruleIndex, index, reply);
     refreshBoard();
     replyList.children[index]?.querySelector('.row-field')?.focus({preventScroll:true});
   });
-  if (add) field.placeholder = 'New reply template';
-  row.append(field, deleteButton(add ? 'new reply' : label, () => {
-    if (add) row.remove();
-    else if (session.engine.deleteReply(keyword, ruleIndex, index)) refreshBoard();
+  row.append(field, deleteButton(label, () => {
+    if (session.engine.deleteReply(keyword, ruleIndex, index)) refreshBoard();
     else editorStatus('Keep at least one general reply.', true, 'replies-status');
   }));
   return row;
@@ -732,6 +733,11 @@ function replyRow(editor, value, index) {
 
 editors.forEach(({button,form,field}) => {
   button.addEventListener('click', () => {
+    if (pending || (button.id === 'add-reply' && !replyEditor)) return;
+    if (button.id === 'add-reply' && !form.hidden) {
+      field.focus();
+      return;
+    }
     const open = form.hidden;
     closeEditors();
     if (!open) return;
@@ -739,6 +745,14 @@ editors.forEach(({button,form,field}) => {
     if (button.id === 'add-rule') {
       const word = wordsForGroup(boardSelection.keyword)[0] || boardSelection.keyword;
       field.placeholder = '* ' + readable(word) + ' *';
+    }
+    if (button.id === 'add-reply') {
+      form.reset();
+      field.removeAttribute('aria-invalid');
+      const slots = byId('add-reply-slots');
+      const names = [...captureNames(replyEditor.rule).values()];
+      if (names.length) showAvailableSlots(slots, names, field);
+      else slots.replaceChildren();
     }
     button.setAttribute('aria-expanded', 'true');
     field.focus();
@@ -765,16 +779,28 @@ byId('restore-rules').addEventListener('click', () => {
   session.engine.restoreRules(boardSelection.keyword);
   refreshBoard(boardSelection.keyword, 0);
 });
-byId('add-reply').addEventListener('click', () => {
-  if (!replyEditor) return;
-  const draft = replyList.querySelector('[placeholder="New reply template"]');
-  if (draft) {
-    draft.focus();
+byId('add-reply-form').addEventListener('submit', event => {
+  event.preventDefault();
+  if (pending || !replyEditor) return;
+  const {keyword, rule, index} = replyEditor;
+  const input = byId('add-reply-text');
+  const reply = parseRuleReply(input.value, rule);
+  if (!reply) {
+    input.setAttribute('aria-invalid', 'true');
+    editorStatus('Check the reply text and use only the available slots.', true, 'replies-status');
+    input.focus();
     return;
   }
-  const row = replyRow(replyEditor, '', replyList.children.length - 1);
-  addReplyRow.before(row);
-  row.querySelector('.row-field').focus();
+  const replyIndex = replyList.children.length - 1;
+  session.engine.addReply(keyword, index, reply);
+  refreshBoard();
+  const row = replyList.children[replyIndex];
+  showInList(replyList, row);
+  row.querySelector('.row-field')?.focus({preventScroll:true});
+});
+byId('cancel-reply').addEventListener('click', () => {
+  closeEditors();
+  byId('add-reply').focus();
 });
 byId('restore-replies').addEventListener('click', () => {
   if (pending || !replyEditor) return;

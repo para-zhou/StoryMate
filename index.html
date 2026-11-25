@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Chat with ELIZA, then explore the keywords, rules, and reply templates behind its responses.">
   <title>Build Your Own Chatbot</title>
-  <link rel="stylesheet" href="chatbot-assets/style.css?v=keyword-order-1">
+  <link rel="stylesheet" href="chatbot-assets/style.css?v=flow-cards-1">
   <script defer src="chatbot-assets/eliza-hay.js?v=keyword-order-1"></script>
-  <script defer src="chatbot-assets/app.js?v=keyword-order-1"></script>
+  <script defer src="chatbot-assets/app.js?v=flow-cards-1"></script>
 </head>
 <body>
   <main>
@@ -41,7 +41,7 @@
     </section>
 
     <section id="explained-panel" role="tabpanel" aria-labelledby="explained-tab" hidden>
-      <form id="explained-form" class="flow-card">
+      <form id="explained-form" class="flow-card input-card">
         <label class="flow-title" for="explained-input">Input</label>
         <div class="compose">
           <input id="explained-input" type="text" placeholder="I feel happy." maxlength="240" autocomplete="off" required>
@@ -146,9 +146,18 @@
           <div id="reply-slots" class="available-slots"></div>
           <ol class="reply-list" id="reply-list" role="list">
             <li class="add-row" hidden>
-              <button type="button" id="add-reply" class="add-button" aria-label="Add reply" title="Add reply">+</button>
+              <button type="button" id="add-reply" class="add-button" aria-label="Add reply" title="Add reply" aria-controls="add-reply-form" aria-expanded="false">+</button>
             </li>
           </ol>
+          <form id="add-reply-form" class="inline-editor reply-draft" hidden>
+            <label for="add-reply-text">New reply</label>
+            <input id="add-reply-text" type="text" placeholder="What makes you say that?" aria-describedby="replies-status" autocomplete="off" required>
+            <div id="add-reply-slots" class="available-slots"></div>
+            <div class="reply-draft-actions">
+              <button type="submit" class="edit-button">Save reply</button>
+              <button type="button" class="edit-button" id="cancel-reply">Cancel</button>
+            </div>
+          </form>
           <p id="replies-status" class="editor-status" role="status"></p>
         </section>
       </div>
