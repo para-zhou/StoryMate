@@ -508,6 +508,7 @@ class RuleKeyword {
         }
 
         const rule = this.transforms[r];
+        this.selectedTransformIndex = r;
         let selected = rule.nextReassemblyRule;
         if (randomReplies) {
             const candidates = rule.reassemblyRules.filter(isReplyTemplate);
@@ -911,6 +912,9 @@ class Eliza {
                 this.tracer.wordSubstitution(word, substitute);
                 words[i] = substitute;
             }
+        }
+        if (this.orderKeywordsByPriority) {
+            keystack.sort((a, b) => this.rules.get(b).precedence - this.rules.get(a).precedence);
         }
         this.tracer.subclauseComplete(join(words), keystack, this.rules);
 
@@ -2094,7 +2098,9 @@ class HayTrace extends nullTracer {
         else if (toks[0] && toks[0].charAt(0) === '(') {
           var lm = rt.match(/=\s*([A-Z'\-]+)/); this.steps.push({ kind: 'pre', from: keyword, to: lm ? lm[1] : '', rebuilt: [] });
         } else {
-          var transform = this.rules.get(keyword)?.transforms[attempts.length - 1];
+          var group = this.rules.get(keyword);
+          var ruleIndex = group?.selectedTransformIndex;
+          var transform = group?.transforms[ruleIndex];
           var replyOptions = [], selectedReply = 0;
           if (transform) {
             var templates = transform.reassemblyRules;
@@ -2105,7 +2111,7 @@ class HayTrace extends nullTracer {
               if (index === used) selectedReply = replyOptions.length;
             });
           }
-          this.steps.push({ kind: 'reassemble', keyword: keyword, inputKeyword: this.inputKeyword, ruleIndex: attempts.length - 1, template: toks, components: parts, output: fillTemplate(toks, parts), replyOptions: replyOptions, selectedReply: selectedReply });
+          this.steps.push({ kind: 'reassemble', keyword: keyword, inputKeyword: this.inputKeyword, ruleIndex: ruleIndex, template: toks, components: parts, output: fillTemplate(toks, parts), replyOptions: replyOptions, selectedReply: selectedReply });
         }
       }
     } else if (equiv) {
@@ -2170,6 +2176,24 @@ function buildScriptOrThrow() {
   var r = readScript(CACM_1966_01_DOCTOR_SCRIPT);
   if (r[0] !== 'success') throw new Error('ELIZA script error: ' + r[0]);
   return r[1];
+}
+
+function buildConversationScript(groups) {
+  const script = new Script();
+  for (const {keyword, words, precedence, rules} of groups) {
+    const key = keyword === 'NONE' ? SPECIAL_RULE_NONE : keyword;
+    const group = new RuleKeyword(key, '', precedence);
+    group.transforms = rules.map(({tokens, replies, labels}) => {
+      const rule = new Transform(tokens.slice(), replies.map(reply => reply.slice()));
+      rule.slotLabels = {...labels};
+      return rule;
+    });
+    script.rules.set(key, group);
+    for (const word of words) {
+      if (word !== key) script.rules.set(word, new RuleKeyword(word, '', precedence, [], key));
+    }
+  }
+  return script;
 }
 
 function useClassroomWording(script) {
@@ -2255,16 +2279,39 @@ function describeScript(script, inactiveKeywords) {
   return out;
 }
 
+function resolveKeywordGroup(rules, keyword) {
+  let group = rules.get(keyword);
+  const visited = new Set();
+  while (group && !group.transforms.length && group.linkKeyword && !visited.has(group)) {
+    visited.add(group);
+    group = rules.get(group.linkKeyword);
+  }
+  return group;
+}
+
 // make a persistent ELIZA session: one engine whose memory queue, reply counter
 // and reassembly cycling carry across turns (so a whole conversation can be
 // replayed). session.trace(text) returns the structured trace for one turn,
 // including the current memory queue.
 window.ElizaHay = {
-  make: function ({matchOriginalWords = false, randomReplies = false} = {}) {
-    var script = buildScriptOrThrow();
-    if (matchOriginalWords) useClassroomWording(script);
+  make: function ({matchOriginalWords = false, randomReplies = false, orderKeywordsByPriority = false, groups} = {}) {
+    var script = groups ? buildConversationScript(groups) : buildScriptOrThrow();
+    if (matchOriginalWords && !groups) useClassroomWording(script);
+    if (orderKeywordsByPriority) {
+      // A group inherits its highest existing keyword priority so its triggers agree.
+      const priorities = new Map();
+      for (const rule of script.rules.values()) {
+        const group = resolveKeywordGroup(script.rules, rule.keyword);
+        priorities.set(group, Math.max(priorities.get(group) ?? 0, rule.precedence));
+      }
+      for (const rule of script.rules.values()) {
+        rule.precedence = priorities.get(resolveKeywordGroup(script.rules, rule.keyword));
+      }
+    }
     var eliza = new Eliza(script.rules, script.memoryRule, new HayTrace(), 0);
     eliza.randomReplies = randomReplies;
+    eliza.orderKeywordsByPriority = orderKeywordsByPriority;
+    eliza.allowUnmatchedGroups = orderKeywordsByPriority;
     var inactiveKeywords = new Set();
     eliza.inactiveKeywords = inactiveKeywords;
     var inactiveGroups = new Set();
@@ -2386,6 +2433,19 @@ window.ElizaHay = {
       deleteRule: function (keyword, index) {
         rulesFor(keyword).splice(index, 1);
         eliza.allowUnmatchedGroups = true;
+      },
+      moveRule: function (keyword, index, offset) {
+        const rules = rulesFor(keyword);
+        const destination = index + offset;
+        if (!rules[index] || !rules[destination]) return false;
+        [rules[index], rules[destination]] = [rules[destination], rules[index]];
+        return true;
+      },
+      setKeywordPriority: function (keyword, precedence) {
+        const group = resolveKeywordGroup(script.rules, keyword);
+        for (const rule of script.rules.values()) {
+          if (resolveKeywordGroup(script.rules, rule.keyword) === group) rule.precedence = precedence;
+        }
       },
       restoreRules: function (keyword) {
         var group = script.rules.get(keyword);

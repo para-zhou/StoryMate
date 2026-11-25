@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Chat with ELIZA and see which DOCTOR rule and reply it uses.">
+  <meta name="description" content="Chat with ELIZA, then explore the keywords, rules, and reply templates behind its responses.">
   <title>Build Your Own Chatbot</title>
-  <link rel="stylesheet" href="chatbot-assets/style.css">
-  <script defer src="chatbot-assets/eliza-hay.js"></script>
-  <script defer src="chatbot-assets/app.js"></script>
+  <link rel="stylesheet" href="chatbot-assets/style.css?v=keyword-order-1">
+  <script defer src="chatbot-assets/eliza-hay.js?v=keyword-order-1"></script>
+  <script defer src="chatbot-assets/app.js?v=keyword-order-1"></script>
 </head>
 <body>
   <main>
@@ -15,8 +15,12 @@
       <h1>Build Your Own Chatbot</h1>
       <p class="subtitle">Based on Joseph Weizenbaum’s ELIZA (1966)</p>
     </header>
-    <section class="chat" aria-labelledby="chat-title">
-      <img class="chat-mascot" src="chatbot-assets/chat-robot.png" alt="" width="1289" height="1221">
+    <nav class="view-tabs" role="tablist" aria-label="ELIZA views">
+      <button type="button" id="chat-tab" role="tab" aria-controls="chat-panel" aria-selected="true">Chat</button>
+      <button type="button" id="explained-tab" role="tab" aria-controls="explained-panel" aria-selected="false" tabindex="-1">ELIZA Explained</button>
+    </nav>
+    <section class="chat" id="chat-panel" role="tabpanel" aria-labelledby="chat-tab">
+      <img class="chat-mascot" src="chatbot-assets/chat-robot.png" alt="" width="112" height="106">
       <header class="chat-heading">
         <h2 id="chat-title">Chat</h2>
         <button type="button" id="clear-chat" class="text-button" disabled>Clear chat</button>
@@ -36,96 +40,123 @@
       </form>
     </section>
 
-    <p class="save-hint" id="save-hint">Press Enter to save changes.</p>
-    <div class="board" id="rule-board">
-      <section class="panel keyword-panel" aria-label="Keywords" aria-describedby="keyword-hint">
-        <div class="keyword-controls">
-          <div>
-            <div class="panel-heading">
-              <label class="panel-title" for="keyword"><span class="step-number">1</span> Keyword</label>
-              <div class="group-actions">
-                <button type="button" id="new-group" class="add-button" aria-label="Add keyword group" title="Add keyword group" aria-controls="new-group-form" aria-expanded="false">+</button>
-                <button type="button" id="delete-group" class="delete-row" aria-label="Delete selected keyword group" title="Delete selected keyword group" disabled>−</button>
+    <section id="explained-panel" role="tabpanel" aria-labelledby="explained-tab" hidden>
+      <form id="explained-form" class="flow-card">
+        <label class="flow-title" for="explained-input">Input</label>
+        <div class="compose">
+          <input id="explained-input" type="text" placeholder="I feel happy." maxlength="240" autocomplete="off" required>
+          <button type="submit" id="run-message" class="primary-button">Run</button>
+        </div>
+        <p id="explained-status" class="editor-status" role="status"></p>
+      </form>
+      <p class="save-hint" id="save-hint">Press Enter to save changes.</p>
+      <div class="board" id="rule-board">
+        <section class="panel keyword-panel" aria-label="Keywords" aria-describedby="keyword-hint">
+          <div class="keyword-controls">
+            <div>
+              <div class="panel-heading">
+                <label class="panel-title" for="keyword"><span class="step-number">1</span> Keyword</label>
+                <div class="group-actions">
+                  <button type="button" id="new-group" class="add-button" aria-label="Add keyword group" title="Add keyword group" aria-controls="new-group-form" aria-expanded="false">+</button>
+                  <button type="button" id="delete-group" class="delete-row" aria-label="Delete selected keyword group" title="Delete selected keyword group" disabled>−</button>
+                </div>
+              </div>
+              <p class="panel-hint" id="keyword-hint">Find keywords in your message.</p>
+              <select id="keyword"></select>
+              <div class="keyword-priority" id="keyword-priority-control" hidden>
+                <label for="keyword-priority">Priority</label>
+                <input type="number" id="keyword-priority" min="0" step="1" aria-describedby="keyword-priority-hint">
+                <p id="keyword-priority-hint">Higher numbers are tried first. All words in this group share this number.</p>
+              </div>
+              <form id="new-group-form" class="inline-editor" hidden>
+                <label for="new-group-name">Group name</label>
+                <input id="new-group-name" placeholder="AI" maxlength="28" required>
+                <label for="new-group-words">Words</label>
+                <input id="new-group-words" placeholder="AI, ChatGPT" maxlength="180" required>
+                <label for="new-group-pattern">First rule pattern</label>
+                <input id="new-group-pattern" class="pattern-input" value="*" maxlength="180" required>
+                <label for="new-group-reply">First reply</label>
+                <input id="new-group-reply" placeholder="What do you use AI for?" maxlength="160" required>
+                <div id="new-group-slots" class="available-slots"></div>
+                <div class="rule-example"></div>
+                <button type="submit" class="edit-button">Add group</button>
+              </form>
+              <p id="group-status" class="editor-status" role="status"></p>
+              <div class="group-undo" id="group-undo" hidden>
+                <span id="group-deleted-message" role="status"></span>
+                <button type="button" class="edit-button" id="undo-delete-group">Undo</button>
               </div>
             </div>
-            <p class="panel-hint" id="keyword-hint">Find keywords in your message.</p>
-            <select id="keyword"></select>
-            <form id="new-group-form" class="inline-editor" hidden>
-              <label for="new-group-name">Group name</label>
-              <input id="new-group-name" placeholder="AI" maxlength="28" required>
-              <label for="new-group-words">Words</label>
-              <input id="new-group-words" placeholder="AI, ChatGPT" maxlength="180" required>
-              <label for="new-group-pattern">First rule pattern</label>
-              <input id="new-group-pattern" class="pattern-input" value="*" maxlength="180" required>
-              <label for="new-group-reply">First reply</label>
-              <input id="new-group-reply" placeholder="What do you use AI for?" maxlength="160" required>
-              <div id="new-group-slots" class="available-slots"></div>
-              <div class="rule-example"></div>
-              <button type="submit" class="edit-button">Add group</button>
-            </form>
-            <p id="group-status" class="editor-status" role="status"></p>
-            <div class="group-undo" id="group-undo" hidden>
-              <span id="group-deleted-message" role="status"></span>
-              <button type="button" class="edit-button" id="undo-delete-group">Undo</button>
+            <div id="group-members">
+              <div class="panel-heading">
+                <h2 class="keyword-label">Words</h2>
+                <button type="button" id="restore-words" class="edit-button" aria-label="Restore words">Restore</button>
+              </div>
+              <ul id="keyword-words" class="keyword-words" role="list">
+                <li class="add-row" hidden>
+                  <button type="button" id="add-word" class="add-button" aria-label="Add word" title="Add word">+</button>
+                </li>
+              </ul>
+              <p id="words-status" class="editor-status" role="status"></p>
             </div>
           </div>
-          <div id="group-members">
-            <div class="panel-heading">
-              <h2 class="keyword-label">Words</h2>
-              <button type="button" id="restore-words" class="edit-button" aria-label="Restore words">Restore</button>
-            </div>
-            <ul id="keyword-words" class="keyword-words" role="list">
-              <li class="add-row" hidden>
-                <button type="button" id="add-word" class="add-button" aria-label="Add word" title="Add word">+</button>
-              </li>
-            </ul>
-            <p id="words-status" class="editor-status" role="status"></p>
+          <p class="keyword-match" id="keyword-match" hidden></p>
+          <p class="group-note" id="group-note"></p>
+        </section>
+        <section class="panel rules-panel" aria-labelledby="rules-title" aria-describedby="rule-hint">
+          <div class="panel-heading">
+            <h2 class="panel-title" id="rules-title"><span class="step-number">2</span> Rules</h2>
+            <button type="button" id="restore-rules" class="edit-button" aria-label="Restore rules" hidden>Restore</button>
           </div>
-        </div>
-        <p class="group-note" id="group-note"></p>
+          <p class="panel-hint" id="rule-hint">Try rules from top to bottom. The first match wins.</p>
+          <p class="pattern-key"><code>*</code> skip any words · <code>word</code> match exactly · <code>[a/b]</code> match either · <code>[slot 1]</code> save words for a reply</p>
+          <ol class="rule-list" id="rule-list" role="list">
+            <li class="add-row" hidden>
+              <button type="button" id="add-rule" class="add-button" aria-label="Add rule" title="Add rule" aria-controls="add-rule-form" aria-expanded="false">+</button>
+            </li>
+          </ol>
+          <form id="add-rule-form" class="inline-editor" hidden>
+            <label for="add-rule-pattern">Pattern</label>
+            <input id="add-rule-pattern" type="text" class="pattern-input" placeholder="* computer *" aria-describedby="add-rule-pattern-hint" maxlength="180" required>
+            <p class="pattern-key" id="add-rule-pattern-hint">Write the words to match. Use <code>*</code> before or after them to allow extra words.</p>
+            <label for="add-rule-reply">Reply template</label>
+            <input id="add-rule-reply" placeholder="What makes you say that?" aria-describedby="add-rule-reply-hint" maxlength="160" required>
+            <p class="pattern-key" id="add-rule-reply-hint">Write what ELIZA could say when this rule matches.</p>
+            <p class="pattern-key">New rules go to the top of this group.</p>
+            <div id="add-rule-slots" class="available-slots"></div>
+            <div class="rule-example"></div>
+            <button type="submit" class="edit-button">Save new rule</button>
+          </form>
+          <div class="rule-order" id="rule-order-control" role="group" aria-labelledby="rule-order-label" hidden>
+            <span id="rule-order-label">Rule order</span>
+            <button type="button" id="move-rule-up" class="edit-button">Move up</button>
+            <button type="button" id="move-rule-down" class="edit-button">Move down</button>
+          </div>
+          <dl id="capture-guide" class="capture-guide"></dl>
+          <p id="editor-status" class="editor-status" role="status"></p>
+        </section>
+        <section class="panel replies-panel" aria-labelledby="replies-title" aria-describedby="reply-hint">
+          <div class="panel-heading">
+            <h2 class="panel-title" id="replies-title"><span class="step-number">3</span> Replies</h2>
+            <button type="button" id="restore-replies" class="edit-button" aria-label="Restore replies" hidden>Restore</button>
+          </div>
+          <p class="panel-hint" id="reply-hint">Randomly pick a reply template and fill in any slots.</p>
+          <p class="reply-context" id="reply-context" role="status">Choose a rule to see its replies.</p>
+          <p id="captured-content" class="matched-words" hidden></p>
+          <div id="reply-slots" class="available-slots"></div>
+          <ol class="reply-list" id="reply-list" role="list">
+            <li class="add-row" hidden>
+              <button type="button" id="add-reply" class="add-button" aria-label="Add reply" title="Add reply">+</button>
+            </li>
+          </ol>
+          <p id="replies-status" class="editor-status" role="status"></p>
+        </section>
+      </div>
+      <section class="flow-card output-card" aria-labelledby="output-title">
+        <h2 id="output-title" class="flow-title">Output</h2>
+        <output id="explained-output" for="explained-input" aria-labelledby="output-title">Run a message to see the reply.</output>
       </section>
-      <section class="panel rules-panel" aria-labelledby="rules-title" aria-describedby="rule-hint">
-        <div class="panel-heading">
-          <h2 class="panel-title" id="rules-title"><span class="step-number">2</span> Rules</h2>
-          <button type="button" id="restore-rules" class="edit-button" aria-label="Restore rules" hidden>Restore</button>
-        </div>
-        <p class="panel-hint" id="rule-hint">Match your message to a rule.</p>
-        <p class="pattern-key"><code>*</code> skip any words · <code>word</code> match exactly · <code>[a/b]</code> match either · <code>[slot 1]</code> save words for a reply</p>
-        <ol class="rule-list" id="rule-list" role="list">
-          <li class="add-row" hidden>
-            <button type="button" id="add-rule" class="add-button" aria-label="Add rule" title="Add rule" aria-controls="add-rule-form" aria-expanded="false">+</button>
-          </li>
-        </ol>
-        <form id="add-rule-form" class="inline-editor" hidden>
-          <label for="add-rule-pattern">Pattern</label>
-          <input id="add-rule-pattern" type="text" class="pattern-input" value="*" maxlength="180" required>
-          <label for="add-rule-reply">Reply template</label>
-          <input id="add-rule-reply" maxlength="160" required>
-          <div id="add-rule-slots" class="available-slots"></div>
-          <div class="rule-example"></div>
-          <p class="pattern-key">This rule is tried first in the group.</p>
-          <button type="submit" class="edit-button">Save new rule</button>
-        </form>
-        <dl id="capture-guide" class="capture-guide"></dl>
-        <p id="editor-status" class="editor-status" role="status"></p>
-      </section>
-      <section class="panel replies-panel" aria-labelledby="replies-title" aria-describedby="reply-hint">
-        <div class="panel-heading">
-          <h2 class="panel-title" id="replies-title"><span class="step-number">3</span> Replies</h2>
-          <button type="button" id="restore-replies" class="edit-button" aria-label="Restore replies" hidden>Restore</button>
-        </div>
-        <p class="panel-hint" id="reply-hint">Randomly pick a reply template and fill in any slots.</p>
-        <p class="reply-context" id="reply-context" role="status">Choose a rule to see its replies.</p>
-        <p id="captured-content" class="matched-words" hidden></p>
-        <div id="reply-slots" class="available-slots"></div>
-        <ol class="reply-list" id="reply-list" role="list">
-          <li class="add-row" hidden>
-            <button type="button" id="add-reply" class="add-button" aria-label="Add reply" title="Add reply">+</button>
-          </li>
-        </ol>
-        <p id="replies-status" class="editor-status" role="status"></p>
-      </section>
-    </div>
+    </section>
 
     <template id="pattern-reply-example">
       <details class="pattern-key">
